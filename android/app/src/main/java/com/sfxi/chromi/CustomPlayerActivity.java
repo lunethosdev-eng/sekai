@@ -98,3 +98,4 @@ public class CustomPlayerActivity extends AppCompatActivity {
         }
     }
 }
+
