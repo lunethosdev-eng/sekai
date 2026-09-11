@@ -1,11 +1,15 @@
 {
   "name": "sekai",
   "version": "1.0.0",
-  "description": "Plataforma pública y Backend Proxy para Chromi Bot",
+  "description": "Sekai — app social de anime, manga, búsqueda, chat con Chromi y backend Express",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
+    "check": "node --check server.js",
+    "ci": "npm run check"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
