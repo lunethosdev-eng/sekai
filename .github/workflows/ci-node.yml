@@ -27,15 +27,14 @@ jobs:
 
       - name: Verify package tree
         run: |
-          echo "=== Dependencias instaladas ==="
-          npm ls --depth=0
+          echo "=== Dependencias de package.json ==="
           test -d node_modules/express
           test -d node_modules/dotenv
           test -d node_modules/cors
           test -d node_modules/qrcode
           test -d node_modules/@whiskeysockets/baileys
           test -d node_modules/@supabase/supabase-js
-          echo "Todas las dependencias de package.json están presentes."
+          echo "OK: express, dotenv, cors, qrcode, baileys, supabase-js"
 
       - name: Syntax check server.js
         run: npm run check
@@ -51,20 +50,18 @@ jobs:
           node -e "
             require('dotenv').config();
             const fs = require('fs');
-            const path = require('path');
             if (!fs.existsSync('server.js')) throw new Error('server.js missing');
             if (!fs.existsSync('public/index.html')) throw new Error('public/index.html missing');
             if (!fs.existsSync('public/app.js')) throw new Error('public/app.js missing');
-            // Parse without listening: basic require of deps used by server
             require('express');
             require('cors');
             require('dotenv');
             require('qrcode');
             require('@supabase/supabase-js');
-            console.log('Smoke OK: entrypoints y módulos Node listos');
+            console.log('Smoke OK');
           "
 
-      - name: Upload source artifact (sin node_modules / .env)
+      - name: Upload source artifact
         uses: actions/upload-artifact@v4
         with:
           name: sekai-source
@@ -78,4 +75,3 @@ jobs:
             README.md
             .env.example
           if-no-files-found: warn
-
