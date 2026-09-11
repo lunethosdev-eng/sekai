@@ -1,4 +1,8 @@
-require('dotenv').config();
+try {
+    require('dotenv').config();
+} catch (e) {
+    // Permite que el servidor inicie en entornos de CI/CD o producción sin la librería dotenv
+}
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -590,3 +594,4 @@ app.post('/api/chat', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor activo en http://localhost:${PORT}`);
 });
+
