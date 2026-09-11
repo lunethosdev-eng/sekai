@@ -1,5 +1,5 @@
 {
-  "name": "chromi-plataforma-publica",
+  "name": "sekai",
   "version": "1.0.0",
   "description": "Plataforma pública y Backend Proxy para Chromi Bot",
   "main": "server.js",
@@ -8,12 +8,11 @@
     "check": "node --check server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
     "@whiskeysockets/baileys": "^6.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "qrcode": "^1.5.3",
-    "@supabase/supabase-js": "^2.57.0"
+    "qrcode": "^1.5.3"
   }
 }
-
