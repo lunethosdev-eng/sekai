@@ -228,9 +228,66 @@ app.get('/api/search/anime', async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 20);
     if (!q) return res.json({ source: 'jikan', data: [] });
 
+    const mapJikan = (payload) => {
+        const qLower = q.toLowerCase();
+        const mapped = (payload.data || []).map(item => {
+            const titles = Array.isArray(item.titles) ? item.titles : [];
+            const defaultTitle = item.title || titles.find(t => t.type === 'Default')?.title || '';
+            const englishTitle = item.title_english || titles.find(t => t.type === 'English')?.title || '';
+            const japaneseTitle = item.title_japanese || titles.find(t => t.type === 'Japanese')?.title || '';
+            return {
+                id: String(item.mal_id || item.id || ''),
+                type: 'anime',
+                source: 'Jikan',
+                title: defaultTitle,
+                titleEnglish: englishTitle,
+                titleJapanese: japaneseTitle,
+                description: (item.synopsis || '').slice(0, 400),
+                synopsis: item.synopsis || '',
+                cover: item.images?.jpg?.image_url || item.images?.jpg?.large_image_url || '',
+                score: item.score || null,
+                episodes: item.episodes || null,
+                status: item.status || '',
+                year: item.year || item.aired?.prop?.from?.year || null,
+                url: item.url || `https://myanimelist.net/anime/${item.mal_id}`,
+                badge: 'ANIME'
+            };
+        });
+        // Prefer titles that start with the query
+        mapped.sort((a, b) => {
+            const as = a.title.toLowerCase().startsWith(qLower) ? 0 : 1;
+            const bs = b.title.toLowerCase().startsWith(qLower) ? 0 : 1;
+            return as - bs;
+        });
+        return mapped.slice(0, limit);
+    };
+
+    const mapKitsu = (payload) => {
+        return (payload.data || []).slice(0, limit).map(item => {
+            const a = item.attributes || {};
+            const poster = a.posterImage || {};
+            return {
+                id: String(item.id),
+                type: 'anime',
+                source: 'Kitsu',
+                title: a.canonicalTitle || a.titles?.en || a.titles?.en_jp || 'Anime',
+                titleEnglish: a.titles?.en || '',
+                titleJapanese: a.titles?.ja_jp || '',
+                description: (a.synopsis || a.description || '').slice(0, 400),
+                synopsis: a.synopsis || '',
+                cover: poster.medium || poster.small || poster.original || '',
+                score: a.averageRating ? Math.round(Number(a.averageRating) / 10 * 10) / 10 : null,
+                episodes: a.episodeCount || null,
+                status: a.status || '',
+                year: a.startDate ? Number(String(a.startDate).slice(0, 4)) : null,
+                url: a.slug ? `https://kitsu.io/anime/${a.slug}` : `https://kitsu.io/anime/${item.id}`,
+                badge: 'ANIME'
+            };
+        });
+    };
+
+    // 1) Try Jikan
     try {
-        // Consultas cortas (ej. "tate") ordenamos por popularidad para que
-        // aparezcan primero los animes conocidos aunque el nombre no sea completo.
         const isShort = q.length <= 5;
         const params = new URLSearchParams({
             q,
@@ -242,142 +299,146 @@ app.get('/api/search/anime', async (req, res) => {
             params.set('order_by', 'popularity');
             params.set('sort', 'asc');
         }
-
-        const payload = await fetchJson(`https://api.jikan.moe/v4/anime?${params.toString()}`);
-        const qLower = q.toLowerCase();
-
-        const mapped = (payload.data || []).map(item => {
-            const titles = Array.isArray(item.titles) ? item.titles : [];
-            const defaultTitle = item.title || titles.find(t => t.type === 'Default')?.title || '';
-            const englishTitle = item.title_english || titles.find(t => t.type === 'English')?.title || '';
-            const japaneseTitle = item.title_japanese || titles.find(t => t.type === 'Japanese')?.title || '';
-            const synonyms = titles
-                .filter(t => t.type === 'Synonym' || t.type === 'English')
-                .map(t => t.title)
-                .filter(Boolean);
-
-            const allCandidates = [defaultTitle, englishTitle, japaneseTitle, ...synonyms].filter(Boolean);
-            const startsWithMatch = allCandidates.find(t => t.toLowerCase().startsWith(qLower));
-            const includesMatch = allCandidates.find(t => t.toLowerCase().includes(qLower));
-            const displayTitle = startsWithMatch || includesMatch || englishTitle || defaultTitle;
-
-            let relevance = 0;
-            const titleL = (defaultTitle || '').toLowerCase();
-            const engL = (englishTitle || '').toLowerCase();
-            if (titleL === qLower || engL === qLower) relevance = 100;
-            else if (titleL.startsWith(qLower) || engL.startsWith(qLower)) relevance = 80;
-            else if (titleL.includes(qLower) || engL.includes(qLower)) relevance = 60;
-            else if (allCandidates.some(t => t.toLowerCase().includes(qLower))) relevance = 40;
-            else relevance = 10;
-
-            if (item.score) relevance += Math.min(item.score, 10);
-            if (item.members) relevance += Math.min(Math.log10(item.members + 1), 5);
-
-            return {
-                id: item.mal_id,
-                type: 'anime',
-                source: 'Jikan / MyAnimeList',
-                title: displayTitle,
-                titleEnglish: englishTitle || null,
-                titleJapanese: japaneseTitle || null,
-                altTitles: synonyms.slice(0, 4),
-                synopsis: item.synopsis || '',
-                year: item.year || item.aired?.from?.slice(0, 4) || null,
-                score: item.score ?? null,
-                episodes: item.episodes ?? null,
-                status: item.status || '',
-                typeName: item.type || '',
-                cover: item.images?.webp?.image_url || item.images?.jpg?.image_url || '',
-                url: item.url || `https://myanimelist.net/anime/${item.mal_id}`,
-                _relevance: relevance
-            };
-        });
-
-        mapped.sort((a, b) => (b._relevance || 0) - (a._relevance || 0));
-        const data = mapped.slice(0, limit).map(({ _relevance, ...rest }) => rest);
-
-        res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
+        const payload = await fetchJson(`https://api.jikan.moe/v4/anime?${params.toString()}`, { timeout: 12000 });
+        const data = mapJikan(payload);
+        if (data.length) {
+            return res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
+        }
     } catch (error) {
         console.error('Jikan anime search:', error.message);
-        res.status(error.status === 429 ? 429 : 502).json({ error: 'La búsqueda de anime no está disponible en este momento.', source: 'jikan' });
+    }
+
+    // 2) Fallback Kitsu
+    try {
+        const params = new URLSearchParams();
+        params.set('filter[text]', q);
+        params.set('page[limit]', String(limit));
+        const payload = await fetchJson(`https://kitsu.io/api/edge/anime?${params.toString()}`, { timeout: 12000 });
+        const data = mapKitsu(payload);
+        return res.json({ source: 'kitsu', total: data.length, data });
+    } catch (error) {
+        console.error('Kitsu anime search:', error.message);
+        return res.status(502).json({ error: 'La búsqueda de anime no está disponible en este momento.', source: 'jikan+kitsu' });
     }
 });
 
 app.get('/api/search/characters', async (req, res) => {
     const q = String(req.query.q || '').trim();
-    const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 20);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 20);
     if (!q) return res.json({ source: 'jikan', data: [] });
+
     try {
-        const params = new URLSearchParams({
-            q,
-            limit: String(limit),
-            page: '1',
-            order_by: 'favorites',
-            sort: 'desc'
-        });
-        const payload = await fetchJson(`https://api.jikan.moe/v4/characters?${params.toString()}`);
-        const qLower = q.toLowerCase();
-        const mapped = (payload.data || []).map(item => {
-            const name = item.name || '';
-            const nameL = name.toLowerCase();
-            let relevance = 10;
-            if (nameL === qLower) relevance = 100;
-            else if (nameL.startsWith(qLower)) relevance = 80;
-            else if (nameL.includes(qLower)) relevance = 60;
-            if (item.favorites) relevance += Math.min(Math.log10(item.favorites + 1) * 4, 15);
-            return {
-                id: item.mal_id,
-                type: 'character',
-                source: 'Jikan / MyAnimeList',
-                title: name,
-                description: item.about || '',
-                cover: item.images?.webp?.image_url || item.images?.jpg?.image_url || '',
-                url: item.url || `https://myanimelist.net/character/${item.mal_id}`,
-                _relevance: relevance
-            };
-        });
-        mapped.sort((a, b) => (b._relevance || 0) - (a._relevance || 0));
-        const data = mapped.map(({ _relevance, ...rest }) => rest);
-        res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
+        const params = new URLSearchParams({ q, limit: String(limit) });
+        const payload = await fetchJson(`https://api.jikan.moe/v4/characters?${params.toString()}`, { timeout: 12000 });
+        const data = (payload.data || []).map(item => ({
+            id: String(item.mal_id),
+            type: 'character',
+            source: 'Jikan',
+            title: item.name || '',
+            titleEnglish: item.name || '',
+            titleJapanese: (item.name_kanji || ''),
+            description: (item.about || '').slice(0, 300),
+            cover: item.images?.jpg?.image_url || '',
+            url: item.url || `https://myanimelist.net/character/${item.mal_id}`,
+            badge: 'CHAR'
+        }));
+        return res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
     } catch (error) {
         console.error('Jikan character search:', error.message);
-        res.status(error.status === 429 ? 429 : 502).json({ error: 'La búsqueda de personajes no está disponible en este momento.', source: 'jikan' });
+        // No tumbar toda la búsqueda: devolver vacío
+        return res.json({ source: 'jikan', total: 0, data: [], warning: 'Personajes temporalmente no disponibles' });
     }
 });
 
-// Búsqueda web: DuckDuckGo HTML (motor principal) + Wikipedia/GitHub de apoyo.
 app.get('/api/search/web', async (req, res) => {
     const q = String(req.query.q || '').trim();
-    if (!q) return res.json({ source: 'chromi-ddg', query: q, data: [], knowledge: null, questions: [] });
+    if (!q) return res.json({ source: 'chromi-web', query: q, data: [], knowledge: null, questions: [] });
 
     const results = [];
     let knowledge = null;
-
     const strip = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const seen = new Set();
 
-    // 1) DuckDuckGo HTML results
+    const pushResult = (item) => {
+        if (!item || !item.url) return;
+        let key = item.url;
+        try { key = new URL(item.url).hostname + new URL(item.url).pathname; } catch (_) {}
+        if (seen.has(key)) return;
+        seen.add(key);
+        results.push(item);
+    };
+
+    // 1) DuckDuckGo Instant Answer API (fiable, JSON)
+    try {
+        const ddg = await fetchJson(
+            `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`,
+            { timeout: 10000 }
+        );
+        if (ddg?.Heading && (ddg.Abstract || ddg.AbstractText)) {
+            knowledge = {
+                type: 'knowledge',
+                source: ddg.AbstractSource || 'DuckDuckGo',
+                title: ddg.Heading,
+                description: ddg.AbstractText || ddg.Abstract || '',
+                extract: ddg.AbstractText || ddg.Abstract || '',
+                cover: ddg.Image ? (ddg.Image.startsWith('http') ? ddg.Image : `https://duckduckgo.com${ddg.Image}`) : '',
+                url: ddg.AbstractURL || ddg.Redirect || ''
+            };
+        }
+        const related = Array.isArray(ddg?.RelatedTopics) ? ddg.RelatedTopics : [];
+        for (const t of related) {
+            if (t.Topics && Array.isArray(t.Topics)) {
+                for (const sub of t.Topics.slice(0, 3)) {
+                    if (sub.FirstURL && sub.Text) {
+                        pushResult({
+                            type: 'web',
+                            source: 'DuckDuckGo',
+                            badge: 'WEB',
+                            title: sub.Text.split(' - ')[0].slice(0, 120),
+                            description: sub.Text,
+                            url: sub.FirstURL,
+                            host: (() => { try { return new URL(sub.FirstURL).hostname.replace(/^www\./,''); } catch { return ''; } })()
+                        });
+                    }
+                }
+            } else if (t.FirstURL && t.Text) {
+                pushResult({
+                    type: 'web',
+                    source: 'DuckDuckGo',
+                    badge: 'WEB',
+                    title: t.Text.split(' - ')[0].slice(0, 120),
+                    description: t.Text,
+                    url: t.FirstURL,
+                    host: (() => { try { return new URL(t.FirstURL).hostname.replace(/^www\./,''); } catch { return ''; } })()
+                });
+            }
+            if (results.length >= 10) break;
+        }
+    } catch (e) {
+        console.error('DDG instant:', e.message);
+    }
+
+    // 2) DuckDuckGo HTML (resultados clásicos)
     try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 12000);
         const r = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), {
             signal: controller.signal,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml',
+                'User-Agent': 'Mozilla/5.0 (compatible; ChromiBot/1.0)',
                 'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
             }
         });
         clearTimeout(timer);
-        const html = await r.text();
-        if (!/anomaly-modal|challenge-form/i.test(html)) {
-            const linkRe = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+        if (r.ok) {
+            const html = await r.text();
+            const linkRe = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
             const snipRe = /class="result__snippet"[^>]*>([\s\S]*?)<\/(?:a|td|div)/gi;
             const links = [];
             let m;
             while ((m = linkRe.exec(html)) !== null) links.push({ href: m[1], title: strip(m[2]) });
             const snips = [];
             while ((m = snipRe.exec(html)) !== null) snips.push(strip(m[1]));
-
             links.forEach((L, i) => {
                 let url = L.href;
                 try {
@@ -389,7 +450,9 @@ app.get('/api/search/web', async (req, res) => {
                 if (!/^https?:\/\//i.test(url)) return;
                 let host = '';
                 try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
-                results.push({
+                // filtrar basura de tracking
+                if (/duckduckgo\.com|google\.com\/search/i.test(host)) return;
+                pushResult({
                     type: 'web',
                     source: 'DuckDuckGo',
                     badge: 'WEB',
@@ -404,114 +467,58 @@ app.get('/api/search/web', async (req, res) => {
         console.error('DDG HTML:', e.message);
     }
 
-    // 2) Wikipedia knowledge (optional)
-    try {
-        for (const lang of ['es', 'en']) {
-            const open = await fetchJson(
-                `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=3&namespace=0&format=json`,
-                { timeout: 6000 }
-            );
-            const titles = open?.[1] || [];
-            if (!titles.length) continue;
-            const title = titles[0];
-            try {
-                const sum = await fetchJson(
-                    `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+    // 3) Wikipedia knowledge si aún no hay
+    if (!knowledge) {
+        try {
+            for (const lang of ['es', 'en']) {
+                const open = await fetchJson(
+                    `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=3&namespace=0&format=json`,
                     { timeout: 6000 }
                 );
-                if (sum?.extract) {
-                    knowledge = {
-                        type: 'knowledge',
-                        source: `Wikipedia (${lang})`,
-                        title: sum.title || title,
-                        description: sum.description || '',
-                        extract: sum.extract,
-                        cover: sum.thumbnail?.source || '',
-                        url: sum.content_urls?.desktop?.page || open[3]?.[0] || ''
-                    };
-                    break;
-                }
-            } catch (_) {}
+                const titles = open?.[1] || [];
+                if (!titles.length) continue;
+                const title = titles[0];
+                try {
+                    const sum = await fetchJson(
+                        `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+                        { timeout: 6000 }
+                    );
+                    if (sum?.extract) {
+                        knowledge = {
+                            type: 'knowledge',
+                            source: `Wikipedia (${lang})`,
+                            title: sum.title || title,
+                            description: sum.description || '',
+                            extract: sum.extract,
+                            cover: sum.thumbnail?.source || '',
+                            url: sum.content_urls?.desktop?.page || open[3]?.[0] || ''
+                        };
+                        break;
+                    }
+                } catch (_) {}
+            }
+        } catch (e) {
+            console.error('wiki:', e.message);
         }
-    } catch (e) {
-        console.error('wiki:', e.message);
     }
 
-    // 3) GitHub top repos (light)
-    try {
-        const gh = await fetchJson(
-            `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=3&sort=stars`,
-            { timeout: 7000, headers: { accept: 'application/vnd.github+json' } }
-        );
-        (gh?.items || []).forEach((repo) => {
-            results.push({
-                type: 'github',
-                source: 'GitHub',
-                badge: 'CODE',
-                title: repo.full_name,
-                description: repo.description || 'Repositorio en GitHub',
-                url: repo.html_url,
-                host: 'github.com',
-                stars: repo.stargazers_count
-            });
-        });
-    } catch (e) {
-        console.error('gh:', e.message);
-    }
-
+    // 4) Preguntas relacionadas simples
     const questions = [
-        `¿Qué es ${q}?`,
-        `${q} tutorial`,
-        `${q} documentación`,
-        `Alternativas a ${q}`
-    ].map((t) => ({ title: t, query: t }));
+        { title: `¿Qué es ${q}?`, query: `qué es ${q}` },
+        { title: `${q} wiki`, query: `${q} wikipedia` },
+        { title: `${q} resumen`, query: `${q} resumen` }
+    ];
 
     res.json({
-        source: 'chromi-ddg',
+        source: 'chromi-web',
         query: q,
-        engine: 'duckduckgo',
+        engine: 'duckduckgo+wiki',
         knowledge,
         questions,
-        data: results
+        data: results.slice(0, 15)
     });
 });
 
-
-// SEKAI Browser: proxy HTTP(S) para navegación web pública.
-// Seguridad: bloquea localhost, redes privadas/link-local y esquemas no HTTP(S).
-const PRIVATE_RANGES = [
-    [/^10\./, 'IPv4 privado'], [/^127\./, 'loopback'], [/^169\.254\./, 'link-local'],
-    [/^192\.168\./, 'IPv4 privado'], [/^172\.(1[6-9]|2\d|3[0-1])\./, 'IPv4 privado'],
-    [/^0\./, 'IPv4 no enrutable']
-];
-function isBlockedIp(ip){
-    if (net.isIPv4(ip)) return PRIVATE_RANGES.some(([re]) => re.test(ip));
-    if (net.isIPv6(ip)) return ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80:') || ip === '::';
-    return true;
-}
-async function assertPublicHost(hostname){
-    const h=String(hostname||'').toLowerCase().replace(/^\[|\]$/g,'');
-    if (!h || h==='localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) throw new Error('Destino no permitido');
-    if (net.isIP(h)) { if(isBlockedIp(h)) throw new Error('Destino no permitido'); return; }
-    const records=await dns.lookup(h,{all:true});
-    if(!records.length || records.some(r=>isBlockedIp(r.address))) throw new Error('Destino no permitido');
-}
-async function fetchProxied(target, hops=0){
-    if(hops>5) throw new Error('Demasiadas redirecciones');
-    const u=new URL(target);
-    if(!['http:','https:'].includes(u.protocol)) throw new Error('Solo se permiten URLs HTTP y HTTPS');
-    await assertPublicHost(u.hostname);
-    const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),15000);
-    try{
-        const r=await fetch(u,{redirect:'manual',signal:controller.signal,headers:{'user-agent':'SekaiBrowser/1.0 (+public web proxy)','accept':'text/html,application/xhtml+xml,application/xml;q=0.9,text/css,application/javascript,image/avif,image/webp,image/*,video/*,audio/*,*/*;q=0.7'}});
-        if(r.status>=300&&r.status<400){
-            const loc=r.headers.get('location');
-            if(!loc) return r;
-            return fetchProxied(new URL(loc,u).href,hops+1);
-        }
-        return r;
-    } finally { clearTimeout(timer); }
-}
 function proxyUrl(u){ return `/api/browser?url=${encodeURIComponent(u)}`; }
 function rewriteHtml(html, baseUrl){
     const rewrite=(value)=>{
@@ -594,4 +601,5 @@ app.post('/api/chat', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor activo en http://localhost:${PORT}`);
 });
+
 
