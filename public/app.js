@@ -39,34 +39,141 @@ function openOnboarding(step='landing'){const o=$('#onboarding');o.hidden=false;
 function renderOnboarding(step){
  const c=$('#onboardContent');
  const o=$('#onboarding');
+ const order=['intro1','intro2','intro3','landing','choose','login','signup','profile','welcome'];
+ const stepIdx=Math.max(0, order.indexOf(step));
  const dots=$$('.progress-dot');
- dots.forEach((d,i)=>d.classList.toggle('active', i <= ({landing:0,choose:0,login:0,signup:1,profile:2,welcome:2}[step]??0)));
- if(step==='landing')c.innerHTML=`
-   <div class="onboard-hero">
-    <span class="onboard-mark">C</span><span class="eyebrow">NAKAMA SEKAI</span>
-    <h1>Tu Sekai empieza aquí.</h1>
-    <p>Chromi reúne anime, manga, búsquedas, conversaciones y tu propia identidad en un solo lugar.</p>
+ // 3 progress dots map to intro / auth / profile
+ const phase= step.startsWith('intro')||step==='landing' ? 0 : (step==='profile'||step==='welcome' ? 2 : 1);
+ dots.forEach((d,i)=>d.classList.toggle('active', i<=phase));
+
+ if(step==='intro1')c.innerHTML=`
+  <div class="ob-slide">
+   <div class="ob-visual ob-visual-search">⌕</div>
+   <span class="eyebrow">PASO 1 · EXPLORAR</span>
+   <h1>Busca lo que amas.</h1>
+   <p>Anime, manga, personajes y la web. Escribe un nombre corto como <b>tate</b> y Chromi entiende el resto.</p>
+   <button class="primary wide" data-onboard="intro2">Siguiente</button>
+   <button class="text-link" data-onboard="landing">Saltar intro</button>
+  </div>`;
+ else if(step==='intro2')c.innerHTML=`
+  <div class="ob-slide">
+   <div class="ob-visual ob-visual-social">◉</div>
+   <span class="eyebrow">PASO 2 · CONECTAR</span>
+   <h1>Tu Sekai, tus gente.</h1>
+   <p>Publica artes y videos, habla con Chromi y con tus amigos. Un feed social hecho para fans.</p>
+   <div class="ob-nav-row">
+    <button class="secondary" data-onboard="intro1">Atrás</button>
+    <button class="primary" data-onboard="intro3">Siguiente</button>
    </div>
-   <div class="feature-list compact">
-    <div><span class="feature-icon">⌕</span><b>Explora</b><small>Busca anime, manga, personajes y contenido del Sekai.</small></div>
-    <div><span class="feature-icon">◌</span><b>Conecta</b><small>Habla con Chromi y conversa con tus amigos.</small></div>
-    <div><span class="feature-icon">C</span><b>Tu identidad</b><small>Un ID único y controles de privacidad para tu perfil.</small></div>
+   <button class="text-link" data-onboard="landing">Saltar intro</button>
+  </div>`;
+ else if(step==='intro3')c.innerHTML=`
+  <div class="ob-slide">
+   <div class="ob-visual ob-visual-id">C</div>
+   <span class="eyebrow">PASO 3 · IDENTIDAD</span>
+   <h1>Un perfil a tu medida.</h1>
+   <p>Banner, colores, estado, enlaces y un ID único. Tu rincón en el Sekai, como tú quieras.</p>
+   <div class="ob-nav-row">
+    <button class="secondary" data-onboard="intro2">Atrás</button>
+    <button class="primary" data-onboard="landing">Empezar</button>
    </div>
-   <button class="primary wide" data-onboard="choose">Crear mi cuenta</button>
-   <button class="oauth" id="googleLanding"><span>G</span> Continuar con Google</button>
-   <button class="text-link" data-onboard="login">Ya tengo una cuenta · Iniciar sesión</button>
-   <button class="guest-link" data-onboard="guest">Continuar como Guest</button>`;
- else if(step==='choose')c.innerHTML=`<button class="back-onboard" data-onboard="landing">‹</button><span class="eyebrow">ENTRAR AL SEKAI</span><h2>Elige cómo quieres entrar.</h2><p class="muted">Puedes usar Google o crear una cuenta con correo y contraseña.</p><button class="oauth" id="googleBtn"><span>G</span> Continuar con Google</button><button class="primary wide" data-onboard="signup">Continuar con correo</button><button class="guest-link" data-onboard="guest">Continuar como Guest</button><button class="text-link" data-onboard="login">Ya tengo una cuenta</button>`;
- else if(step==='login')c.innerHTML=`<button class="back-onboard" data-onboard="choose">‹</button><span class="eyebrow">INICIAR SESIÓN</span><h2>Vuelve a tu Sekai.</h2><p class="muted">Inicia sesión para recuperar tu perfil y conversaciones.</p><form id="loginForm" class="form"><label>Correo<input id="loginEmail" type="email" required autocomplete="email" placeholder="tu@email.com"></label><label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password" placeholder="••••••••"></label><button class="primary wide">Iniciar sesión</button></form><button class="oauth" id="googleLogin"><span>G</span> Continuar con Google</button><button class="text-link" data-onboard="signup">Crear una cuenta</button>`;
- else if(step==='signup')c.innerHTML=`<button class="back-onboard" data-onboard="choose">‹</button><span class="eyebrow">CREAR CUENTA</span><h2>Tu acceso al Sekai.</h2><p class="muted">Usa un correo y una contraseña segura. Después personalizaremos tu perfil.</p><form id="signupForm" class="form"><label>Correo electrónico<input id="signupEmail" type="email" required autocomplete="email" placeholder="tu@email.com"></label><label>Contraseña<input id="signupPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres"><small>Mínimo 8 caracteres.</small></label><button class="primary wide">Crear cuenta</button></form><button class="text-link" data-onboard="choose">Volver</button>`;
- else if(step==='profile')c.innerHTML=`<span class="eyebrow">PASO FINAL</span><h2>Haz que tu perfil sea tuyo.</h2><p class="muted">Estos datos pueden cambiarse después desde tu cuenta.</p><form id="profileForm" class="form"><label>Apodo<input id="profileNick" maxlength="32" required placeholder="Ej. Alex"></label><label>Nombre de usuario<input id="profileUsername" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" required placeholder="alex_2003"><small>3–24 caracteres: letras, números y _.</small></label><div class="visibility"><span>Visibilidad del perfil</span><label><input type="radio" name="visibility" value="public" checked> Público</label><label><input type="radio" name="visibility" value="private"> Privado</label></div><label>Foto de perfil<input id="profileAvatar" type="file" accept="image/*"></label><label>Bio<textarea id="profileBio" maxlength="160" placeholder="Cuéntale algo al Sekai sobre ti..."></textarea></label><button class="primary wide">Crear mi perfil</button></form>`;
- else if(step==='welcome')c.innerHTML=`<div class="welcome-final"><div class="welcome-orb">C</div><span class="eyebrow">NAKAMA SEKAI</span><h1>Bienvenido a Chromi, ${esc(state.profile?.display_name||'amigo')}.</h1><p>Tu identidad está lista. Tu ID único es <strong>${esc(state.profile?.chromi_id||'')}</strong>.</p><div class="welcome-checks"><span>✓ Perfil creado</span><span>✓ Identidad protegida</span><span>✓ Sekai preparado</span></div><button class="primary wide" id="enterSekai">Entrar al Sekai</button></div>`;
- $$('[data-onboard]').forEach(b=>b.addEventListener('click',()=>renderOnboarding(b.dataset.onboard)));
- $('#googleBtn')?.addEventListener('click',googleSignIn); $('#googleLanding')?.addEventListener('click',googleSignIn); $('#googleLogin')?.addEventListener('click',googleSignIn);
- $('#loginForm')?.addEventListener('submit',login); $('#signupForm')?.addEventListener('submit',signup); $('#profileForm')?.addEventListener('submit',finishProfile);
- $('#enterSekai')?.addEventListener('click',()=>{ $('#onboarding').hidden=true; localStorage.setItem('chromi_onboarding_seen','1'); setRoute('home'); });
- if(step==='landing')$$('[data-onboard="guest"]').forEach(b=>b.addEventListener('click',guestSignIn));
+  </div>`;
+ else if(step==='landing')c.innerHTML=`
+  <div class="onboard-hero">
+   <span class="onboard-mark">C</span>
+   <span class="eyebrow">NAKAMA SEKAI</span>
+   <h1>Tu Sekai empieza aquí.</h1>
+   <p>Chromi reúne búsqueda, feed social, chat con IA y un perfil 100% personalizable.</p>
+  </div>
+  <div class="feature-list compact">
+   <div><span class="feature-icon">⌕</span><b>Explora</b><small>Anime, manga, personajes y web.</small></div>
+   <div><span class="feature-icon">◉</span><b>Publica</b><small>Arts, videos y posts en el feed.</small></div>
+   <div><span class="feature-icon">C</span><b>Tu perfil</b><small>Banner, colores, links e ID único.</small></div>
+  </div>
+  <button class="primary wide" data-onboard="choose">Crear mi cuenta</button>
+  <button class="oauth" id="googleLanding"><span>G</span> Continuar con Google</button>
+  <button class="text-link" data-onboard="login">Ya tengo una cuenta · Iniciar sesión</button>
+  <button class="guest-link" data-onboard="guest">Continuar como Guest</button>`;
+ else if(step==='choose')c.innerHTML=`
+  <button class="back-onboard" data-onboard="landing">‹</button>
+  <span class="eyebrow">ENTRAR AL SEKAI</span>
+  <h2>Elige cómo quieres entrar.</h2>
+  <p class="muted">Google es lo más rápido. También puedes usar correo y contraseña.</p>
+  <button class="oauth" id="googleBtn"><span>G</span> Continuar con Google</button>
+  <button class="primary wide" data-onboard="signup">Continuar con correo</button>
+  <button class="guest-link" data-onboard="guest">Continuar como Guest</button>
+  <button class="text-link" data-onboard="login">Ya tengo una cuenta</button>`;
+ else if(step==='login')c.innerHTML=`
+  <button class="back-onboard" data-onboard="choose">‹</button>
+  <span class="eyebrow">INICIAR SESIÓN</span>
+  <h2>Vuelve a tu Sekai.</h2>
+  <p class="muted">Recupera tu perfil, amigos y conversaciones.</p>
+  <form id="loginForm" class="form">
+   <label>Correo<input id="loginEmail" type="email" required autocomplete="email" placeholder="tu@email.com"></label>
+   <label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password" placeholder="••••••••"></label>
+   <button class="primary wide">Iniciar sesión</button>
+  </form>
+  <button class="oauth" id="googleLogin"><span>G</span> Continuar con Google</button>
+  <button class="text-link" data-onboard="signup">Crear una cuenta</button>`;
+ else if(step==='signup')c.innerHTML=`
+  <button class="back-onboard" data-onboard="choose">‹</button>
+  <span class="eyebrow">CREAR CUENTA</span>
+  <h2>Tu acceso al Sekai.</h2>
+  <p class="muted">Correo y contraseña. Luego personalizamos tu perfil.</p>
+  <form id="signupForm" class="form">
+   <label>Correo electrónico<input id="signupEmail" type="email" required autocomplete="email" placeholder="tu@email.com"></label>
+   <label>Contraseña<input id="signupPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres"><small>Mínimo 8 caracteres.</small></label>
+   <button class="primary wide">Crear cuenta</button>
+  </form>
+  <button class="text-link" data-onboard="choose">Volver</button>`;
+ else if(step==='profile')c.innerHTML=`
+  <span class="eyebrow">PASO FINAL</span>
+  <h2>Haz que tu perfil sea tuyo.</h2>
+  <p class="muted">Podrás cambiar banner, colores y enlaces después.</p>
+  <form id="profileForm" class="form">
+   <label>Apodo<input id="profileNick" maxlength="32" required placeholder="Ej. Alex"></label>
+   <label>Nombre de usuario<input id="profileUsername" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" required placeholder="alex_2003"><small>3–24 caracteres: letras, números y _.</small></label>
+   <div class="visibility"><span>Visibilidad del perfil</span>
+    <label><input type="radio" name="visibility" value="public" checked> Público</label>
+    <label><input type="radio" name="visibility" value="private"> Privado</label>
+   </div>
+   <label>Estado / tagline<input id="profileStatus" maxlength="48" placeholder="ej. Best dad joke?"></label>
+   <label>Foto de perfil<input id="profileAvatar" type="file" accept="image/*"></label>
+   <label>Bio<textarea id="profileBio" maxlength="160" placeholder="Cuéntale algo al Sekai sobre ti..."></textarea></label>
+   <button class="primary wide">Crear mi perfil</button>
+  </form>`;
+ else if(step==='welcome')c.innerHTML=`
+  <div class="welcome-final">
+   <div class="welcome-orb">C</div>
+   <span class="eyebrow">NAKAMA SEKAI</span>
+   <h1>Bienvenido, ${esc(state.profile?.display_name||'amigo')}.</h1>
+   <p>Tu identidad está lista. ID único: <strong>${esc(state.profile?.chromi_id||'')}</strong></p>
+   <div class="welcome-checks">
+    <span>✓ Perfil creado</span>
+    <span>✓ Identidad lista</span>
+    <span>✓ Sekai preparado</span>
+   </div>
+   <button class="primary wide" id="enterSekai">Entrar al Sekai</button>
+  </div>`;
+
+ $$('[data-onboard]').forEach(b=>b.addEventListener('click',()=>{
+   const s=b.dataset.onboard;
+   if(s==='guest') return guestSignIn();
+   renderOnboarding(s);
+ }));
+ $('#googleBtn')?.addEventListener('click',googleSignIn);
+ $('#googleLanding')?.addEventListener('click',googleSignIn);
+ $('#googleLogin')?.addEventListener('click',googleSignIn);
+ $('#loginForm')?.addEventListener('submit',login);
+ $('#signupForm')?.addEventListener('submit',signup);
+ $('#profileForm')?.addEventListener('submit',finishProfile);
+ $('#enterSekai')?.addEventListener('click',()=>{
+   $('#onboarding').hidden=true;
+   localStorage.setItem('chromi_onboarding_seen','1');
+   setRoute('home');
+ });
 }
+
 async function googleSignIn(){if(!supabase)return toast('Supabase no está configurado.','error');const redirect=window.CHROMI_AUTH_REDIRECT||location.origin;const {data,error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:redirect,skipBrowserRedirect:!!window.CHROMI_NATIVE}});if(error)return toast(error.message,'error');if(window.CHROMI_NATIVE&&data?.url&&window.AndroidBridge?.openExternal)window.AndroidBridge.openExternal(data.url);else if(data?.url)location.href=data.url}
 async function login(e){e.preventDefault();const sb=requireSupabase();if(!sb)return;const btn=e.submitter||e.target.querySelector('button[type="submit"],button.primary');if(btn){btn.disabled=true;btn.textContent='Entrando…'}
 try{
@@ -86,9 +193,88 @@ try{
 }finally{if(btn){btn.disabled=false;btn.textContent='Iniciar sesión'}}}
 async function signup(e){e.preventDefault();const sb=requireSupabase();if(!sb)return;const email=$('#signupEmail').value.trim(),password=$('#signupPassword').value;if(password.length<8)return toast('Usa una contraseña de al menos 8 caracteres.','error');localStorage.setItem('chromi_onboarding_pending','1');localStorage.setItem('chromi_signup_email',email);const {data,error}=await sb.auth.signUp({email,password});if(error)return toast(error.message,'error');if(data.session)renderOnboarding('profile');else {toast('Cuenta creada. Si Supabase todavía exige confirmación de correo, desactívala en Authentication → Providers → Email.','error');renderOnboarding('login')}}
 async function guestSignIn(){const sb=requireSupabase();if(!sb)return;const {data,error}=await sb.auth.signInAnonymously();if(error)return toast('No se pudo entrar como Guest. Activa Anonymous Sign-Ins en Supabase.','error');state.guest=true;await applySession(data.session);renderOnboarding('welcome');}
-async function finishProfile(e){e.preventDefault();if(!state.user)return toast('Tu sesión no está disponible.','error');const username=$('#profileUsername').value.trim().toLowerCase(),nick=$('#profileNick').value.trim(),bio=$('#profileBio').value.trim(),visibility=$('input[name="visibility"]:checked').value;let avatar_url=state.profile?.avatar_url||null;const file=$('#profileAvatar').files[0];if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${state.user.id}/avatar.${ext}`;const up=await supabase.storage.from('avatars').upload(path,file,{upsert:true,contentType:file.type});if(up.error)return toast('No pude subir la foto: '+up.error.message,'error');avatar_url=supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}
-const {data,error}=await supabase.from('profiles').upsert({id:state.user.id,username,display_name:nick,bio,visibility,avatar_url},{onConflict:'id'}).select().single();if(error){if(error.code==='23505')return toast('Ese nombre de usuario ya está ocupado.','error');return toast(error.message,'error')}await supabase.auth.updateUser({data:{display_name:nick,username}});state.profile=data;localStorage.removeItem('chromi_onboarding_pending');$('#topName').textContent=data.display_name||data.username;$('#homeProfileText').textContent='@'+data.username+' · '+data.chromi_id;renderOnboarding('welcome')}
-async function openProfile(){const p=state.profile||{};showModal(`<span class="eyebrow">TU CUENTA</span><div class="profile-modal"><div class="profile-avatar">${p.avatar_url?`<img src="${esc(p.avatar_url)}">`:'C'}</div><h2>${esc(p.display_name||'Usuario')}</h2><p>@${esc(p.username||'guest')}</p><div class="id-box"><small>ID ÚNICO</small><b>${esc(p.chromi_id||state.user?.id||'')}</b></div><p>${esc(p.bio||'Sin bio todavía.')}</p><span class="privacy">Perfil ${p.visibility==='private'?'privado':'público'}</span><button id="social" class="primary wide">Amigos, biblioteca y ajustes</button><button id="logout" class="secondary wide">Cerrar sesión</button></div>`);$('#social').onclick=()=>openSocial();$('#logout').onclick=async()=>{await supabase.auth.signOut();$('#modal').hidden=true;toast('Sesión cerrada.')}}
+async function finishProfile(e){e.preventDefault();if(!state.user)return toast('Tu sesión no está disponible.','error');const username=$('#profileUsername').value.trim().toLowerCase(),nick=$('#profileNick').value.trim(),bio=$('#profileBio').value.trim(),visibility=$('input[name="visibility"]:checked').value,status_text=($('#profileStatus')?.value||'').trim();let avatar_url=state.profile?.avatar_url||null;const file=$('#profileAvatar').files[0];if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${state.user.id}/avatar.${ext}`;const up=await supabase.storage.from('avatars').upload(path,file,{upsert:true,contentType:file.type});if(up.error)return toast('No pude subir la foto: '+up.error.message,'error');avatar_url=supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}
+const {data,error}=await supabase.from('profiles').upsert({id:state.user.id,username,display_name:nick,bio,visibility,avatar_url,status_text},{onConflict:'id'}).select().single();if(error){if(error.code==='23505')return toast('Ese nombre de usuario ya está ocupado.','error');return toast(error.message,'error')}await supabase.auth.updateUser({data:{display_name:nick,username}});state.profile=data;localStorage.removeItem('chromi_onboarding_pending');$('#topName').textContent=data.display_name||data.username;$('#homeProfileText').textContent='@'+data.username+' · '+data.chromi_id;renderOnboarding('welcome')}
+async function openProfile(){const p=state.profile||{};const theme=p.theme_color||'#7068e8';const accent=p.accent_color||'#a29cf5';const banner=p.banner_url||'';const status=p.status_text||'';const links=Array.isArray(p.links)?p.links:(typeof p.links==='string'?(()=>{try{return JSON.parse(p.links)}catch{return[]}})():[]);
+showModal(`<div class="profile-sheet">
+ <div class="profile-banner" style="background:${banner?`center/cover url('${esc(banner)}')`: `linear-gradient(135deg,${esc(theme)},${esc(accent)})`}"></div>
+ <div class="profile-sheet-body">
+  <div class="profile-avatar-xl" style="border-color:${esc(accent)}">${p.avatar_url?`<img src="${esc(p.avatar_url)}" alt="">`:esc((p.display_name||'U')[0])}</div>
+  <div class="profile-head">
+   <h2>${esc(p.display_name||'Usuario')}</h2>
+   <p class="profile-handle">@${esc(p.username||'guest')}</p>
+   ${status?`<span class="profile-status-pill">${esc(status)}</span>`:''}
+  </div>
+  <p class="profile-bio">${esc(p.bio||'Sin bio todavía. Edita tu perfil para personalizarlo.')}</p>
+  <div class="id-box"><small>ID ÚNICO</small><b>${esc(p.chromi_id||state.user?.id||'')}</b></div>
+  ${links.length?`<div class="profile-links">${links.map(l=>`<a class="profile-link-chip" href="${esc(l.url||'#')}" target="_blank" rel="noopener">${esc(l.label||l.url||'Link')}</a>`).join('')}</div>`:''}
+  <div class="profile-actions">
+   <button id="editProfile" class="primary wide">Personalizar perfil</button>
+   <button id="social" class="secondary wide">Amigos · Biblioteca · Ajustes</button>
+   <button id="logout" class="text-link wide">Cerrar sesión</button>
+  </div>
+  <span class="privacy">Perfil ${p.visibility==='private'?'privado':'público'}</span>
+ </div>
+</div>`);
+$('#social').onclick=()=>openSocial();
+$('#editProfile').onclick=()=>openEditProfile();
+$('#logout').onclick=async()=>{await supabase.auth.signOut();$('#modal').hidden=true;toast('Sesión cerrada.')}}
+async function openEditProfile(){
+ const p=state.profile||{};
+ const links=Array.isArray(p.links)?p.links:(typeof p.links==='string'?(()=>{try{return JSON.parse(p.links)}catch{return[]}})():[]);
+ const linkRows=(links.length?links:[{label:'',url:''}]).map((l,i)=>`<div class="link-row"><input data-i="${i}" data-k="label" placeholder="Etiqueta (Discord, Carrd…)" value="${esc(l.label||'')}"><input data-i="${i}" data-k="url" placeholder="https://..." value="${esc(l.url||'')}"></div>`).join('');
+ showModal(`<span class="eyebrow">PERSONALIZAR</span><h2>Tu perfil, a tu manera</h2>
+ <p class="muted">Banner, colores, estado y enlaces. Todo se guarda en tu cuenta.</p>
+ <form id="editProfileForm" class="form profile-edit-form">
+  <label>Apodo<input id="epNick" maxlength="32" value="${esc(p.display_name||'')}" required></label>
+  <label>Usuario<input id="epUser" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" value="${esc(p.username||'')}" required></label>
+  <label>Bio<textarea id="epBio" maxlength="160">${esc(p.bio||'')}</textarea></label>
+  <label>Estado / tagline<input id="epStatus" maxlength="48" placeholder="ej. Best dad joke?" value="${esc(p.status_text||'')}"></label>
+  <div class="color-row">
+   <label>Color tema<input id="epTheme" type="color" value="${esc(p.theme_color||'#7068e8')}"></label>
+   <label>Acento<input id="epAccent" type="color" value="${esc(p.accent_color||'#a29cf5')}"></label>
+  </div>
+  <label>URL del banner<input id="epBanner" type="url" placeholder="https://...imagen.jpg" value="${esc(p.banner_url||'')}"></label>
+  <label>URL del avatar<input id="epAvatar" type="url" placeholder="https://...avatar.png" value="${esc(p.avatar_url||'')}"></label>
+  <div class="visibility"><span>Visibilidad</span>
+   <label><input type="radio" name="epVis" value="public" ${p.visibility!=='private'?'checked':''}> Público</label>
+   <label><input type="radio" name="epVis" value="private" ${p.visibility==='private'?'checked':''}> Privado</label>
+  </div>
+  <div class="links-edit"><span class="eyebrow">ENLACES</span>${linkRows}<button type="button" id="addLink" class="text-link">＋ Añadir enlace</button></div>
+  <button class="primary wide">Guardar perfil</button>
+ </form>`);
+ let linkCount=Math.max(links.length,1);
+ $('#addLink').onclick=()=>{
+  const box=$('.links-edit');
+  const row=document.createElement('div');row.className='link-row';
+  row.innerHTML=`<input data-i="${linkCount}" data-k="label" placeholder="Etiqueta"><input data-i="${linkCount}" data-k="url" placeholder="https://...">`;
+  box.insertBefore(row,$('#addLink'));linkCount++;
+ };
+ $('#editProfileForm').onsubmit=async e=>{
+  e.preventDefault();const sb=requireSupabase();if(!sb||!state.user)return;
+  const newLinks=[];
+  $$('.link-row').forEach(row=>{
+   const label=row.querySelector('[data-k=label]')?.value.trim();
+   const url=row.querySelector('[data-k=url]')?.value.trim();
+   if(label||url) newLinks.push({label:label||'Link',url:url||'#'});
+  });
+  const payload={
+   display_name:$('#epNick').value.trim(),
+   username:$('#epUser').value.trim(),
+   bio:$('#epBio').value.trim(),
+   status_text:$('#epStatus').value.trim(),
+   theme_color:$('#epTheme').value,
+   accent_color:$('#epAccent').value,
+   banner_url:$('#epBanner').value.trim()||null,
+   avatar_url:$('#epAvatar').value.trim()||null,
+   visibility:document.querySelector('input[name=epVis]:checked')?.value||'public',
+   links:newLinks
+  };
+  const {data,error}=await sb.from('profiles').update(payload).eq('id',state.user.id).select().single();
+  if(error){toast(error.message,'error');return}
+  state.profile=data;toast('Perfil actualizado ✨');openProfile();
+ }
+}
 function showModal(html){$('#modalContent').innerHTML=html;$('#modal').hidden=false}
 async function initAuth(){const sb=requireSupabase();if(!sb)return;const {data}=await sb.auth.getSession();await applySession(data.session);if(state.user)loadConversations();sb.auth.onAuthStateChange(async(_event,session)=>{setTimeout(()=>{applySession(session);if(session)loadConversations();},0)});}
 async function applySession(session){state.user=session?.user||null;if(!state.user){state.profile=null;$('#topName').textContent='Guest';if(!localStorage.getItem('chromi_onboarding_seen'))openOnboarding('landing');return}state.guest=!!state.user.is_anonymous;const {data:profile}=await supabase.from('profiles').select('*').eq('id',state.user.id).maybeSingle();state.profile=profile;if(!state.guest && !profile){setTimeout(()=>openOnboarding('profile'),150)}else if(!state.guest && profile && String(profile.username||'').startsWith('guest_')){setTimeout(()=>openOnboarding('profile'),150)}else if(state.guest&&!profile){const {data:p}=await supabase.from('profiles').insert({id:state.user.id,display_name:'Guest',username:'guest_'+state.user.id.slice(0,8)}).select().single();state.profile=p;setTimeout(()=>renderOnboarding('welcome'),100)}if(state.profile){$('#topName').textContent=state.profile.display_name||state.profile.username||'Guest';
@@ -113,7 +299,14 @@ $('#browserForward')&&($('#browserForward').onclick=()=>searchHistory(1));
 $('#browserRefresh')&&($('#browserRefresh').onclick=()=>{const iframe=$('#webFrame');if(iframe&&iframe.src)iframe.src=iframe.src});
 function searchHistory(d){const n=state.historyIndex+d;if(n<0||n>=state.history.length)return;state.historyIndex=n;const q=state.history[n];$('#searchInput').value=q;if(normalizeWebTarget(q))openWebTarget(q,false);else runSearch(q,false)}
 function showSearchWelcome(){document.body.classList.remove('search-browsing');$('#searchView').innerHTML='<span class="big-mark">C</span><h1>Search</h1><p>Escribe lo que buscas. Web, anime, manga y usuarios en una sola lista.</p>';$('#searchView').hidden=false;$('#searchResults').innerHTML='';const wf=$('#webBrowserFrame');if(wf)wf.hidden=true}
-const API_BASE=String(window.CHROMI_API_BASE||'').replace(/\/$/,'');function apiUrl(path){return API_BASE+path}
+const API_BASE=String(window.CHROMI_API_BASE||window.CHROMI_API_BASE_URL||'').replace(/\/$/,'');
+function apiUrl(path){return API_BASE+path}
+function apiBaseMissing(){
+  // file:// (APK WebView) or empty base → backend unreachable
+  if(API_BASE) return false;
+  if(location.protocol==='file:') return true;
+  return false;
+}
 let HOSHI_URL=String(window.CHROMI_HOSHI_URL||'https://backendv3-188.onrender.com').replace(/\/$/,'');
 let BROWSER_ENGINE=String(window.CHROMI_BROWSER_ENGINE||'hoshi');
 async function loadBrowserConfig(){try{const r=await fetch(apiUrl('/api/config'),{cache:'no-store'});if(!r.ok)return;const d=await r.json();if(d.hoshiUrl)HOSHI_URL=String(d.hoshiUrl).replace(/\/$/,'');if(d.browserEngine)BROWSER_ENGINE=String(d.browserEngine);}catch(e){}}
@@ -128,6 +321,11 @@ async function runSearch(q,add=true){
  if(state.controller)state.controller.abort();state.controller=new AbortController();const signal=state.controller.signal;
  state.searchType='all';
  const type='all';
+ if(apiBaseMissing()){
+  $('#searchView').hidden=true;
+  $('#searchResults').innerHTML=`<div class="empty-state search-error"><h2>Backend no configurado</h2><p>La app no tiene <code>CHROMI_API_BASE</code>. Sin la URL pública del servidor, la búsqueda de anime/manga/web no puede funcionar.</p><p class="muted">Configura la variable de entorno o <code>runtime-config.js</code> con la URL HTTPS de tu backend (ej. https://tu-app.onrender.com).</p></div>`;
+  return;
+ }
  $('#searchView').innerHTML='<span class="big-mark pulse">C</span><h1>Buscando…</h1>';$('#searchView').hidden=false;$('#searchResults').innerHTML='';
 
  const wantWeb=type==='all'||type==='web';
@@ -220,7 +418,11 @@ async function runSearch(q,add=true){
 
  $('#searchView').hidden=true;
  const hasAny=(web.data&&web.data.length)||media.length||users.length||web.knowledge;
- $('#searchResults').innerHTML=hasAny?html:`<div class="empty-results"><b>Sin resultados para “${esc(q)}”.</b><span>Prueba con otras palabras.</span></div>`;
+ if(!hasAny){
+  html=`<div class="empty-results"><b>Sin resultados para “${esc(q)}”.</b><span>Prueba con otras palabras, o un título más completo (ej. “Naruto”, “One Piece”).</span>
+  <div class="search-tips"><small>Consejo: nombres cortos como “tate” suelen funcionar mejor que iniciales. Si siempre falla, revisa que el backend esté online y <code>CHROMI_API_BASE</code> apunte a él.</small></div></div>`;
+ }
+ $('#searchResults').innerHTML=html;
 
  $$('.serp-card[data-url]').forEach(card=>{
   card.onclick=(e)=>{if(e.target.closest('button'))return;const url=card.dataset.url;if(url)openWebTarget(url,true)};
@@ -326,7 +528,33 @@ async function loadSekaiFeed(filter='all'){
  const box=$('#sekaiFeed');if(!box)return;box.innerHTML='<div class="empty-state">Cargando publicaciones…</div>';const sb=requireSupabase();if(!sb){box.innerHTML='<div class="empty-state">Inicia sesión para explorar Sekai.</div>';return}
  let q=sb.from('posts').select('id,user_id,type,media_url,thumbnail_url,title,caption,visibility,duration_seconds,created_at,profiles(username,display_name,avatar_url)').order('created_at',{ascending:false}).limit(40);if(filter!=='all')q=q.eq('type',filter);const {data,error}=await q;if(error){box.innerHTML=`<div class="empty-state">No se pudo cargar Sekai.<br><small>${esc(error.message)}</small></div>`;return}box.innerHTML=(data||[]).map(renderPost).join('')||'<div class="empty-state">Todavía no hay publicaciones aquí. Sé la primera persona en compartir algo. ✨</div>';
 }
-function renderPost(p){const name=p.profiles?.display_name||p.profiles?.username||'Usuario';const avatar=p.profiles?.avatar_url?`<img src="${esc(p.profiles.avatar_url)}">`:esc(name[0]||'U');const media=p.type==='image'||p.type==='art'?`<img class="post-media image" src="${esc(p.media_url)}" alt="${esc(p.title||'Arte')}">`:`<video class="post-media" src="${esc(p.media_url)}" controls playsinline preload="metadata" ${p.thumbnail_url?`poster="${esc(p.thumbnail_url)}"`:''}></video>`;return `<article class="sekai-post"><header class="post-author"><span class="mini-avatar">${avatar}</span><div><b>${esc(name)}</b><small>@${esc(p.profiles?.username||'usuario')} · ${esc(postTypeLabel(p.type))}</small></div><button class="post-more">•••</button></header>${media}<div class="post-body"><div class="post-actions"><button>♡</button><button>◌</button><button>↗</button></div>${p.title?`<h3>${esc(p.title)}</h3>`:''}<p>${esc(p.caption||'')}</p></div></article>`}
+function renderPost(p){
+ const name=p.profiles?.display_name||p.profiles?.username||'Usuario';
+ const uname=p.profiles?.username||'usuario';
+ const avatar=p.profiles?.avatar_url?`<img src="${esc(p.profiles.avatar_url)}" alt="">`:esc(name[0]||'U');
+ const isVid=p.type==='video'||p.type==='short';
+ const media=isVid
+  ?`<div class="post-media-wrap video"><video class="post-media" src="${esc(p.media_url)}" controls playsinline preload="metadata" ${p.thumbnail_url?`poster="${esc(p.thumbnail_url)}"`:''}></video><span class="post-type-badge">${esc(postTypeLabel(p.type))}</span></div>`
+  :`<div class="post-media-wrap"><img class="post-media image" src="${esc(p.media_url)}" alt="${esc(p.title||'Arte')}" loading="lazy"><span class="post-type-badge">${esc(postTypeLabel(p.type))}</span></div>`;
+ const when=p.created_at?new Date(p.created_at).toLocaleDateString('es',{day:'numeric',month:'short'}):'';
+ return `<article class="sekai-post">
+  <header class="post-author">
+   <span class="mini-avatar">${avatar}</span>
+   <div class="post-author-meta"><b>${esc(name)}</b><small>@${esc(uname)}${when?' · '+when:''}</small></div>
+   <button class="post-more" aria-label="Más">•••</button>
+  </header>
+  ${media}
+  <div class="post-body">
+   <div class="post-actions">
+    <button type="button" class="pa-btn" data-act="like" data-id="${esc(p.id)}">♡ <span>Me gusta</span></button>
+    <button type="button" class="pa-btn" data-act="comment" data-id="${esc(p.id)}">◌ <span>Comentar</span></button>
+    <button type="button" class="pa-btn" data-act="share" data-id="${esc(p.id)}">↗ <span>Compartir</span></button>
+   </div>
+   ${p.title?`<h3 class="post-title">${esc(p.title)}</h3>`:''}
+   ${p.caption?`<p class="post-caption">${esc(p.caption)}</p>`:''}
+  </div>
+ </article>`
+}
 $$('[data-feed]').forEach(b=>b.onclick=()=>{$$('[data-feed]').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeFeed=b.dataset.feed;loadSekaiFeed(activeFeed)});
 $('#createPostBtn')?.addEventListener('click',showCreatePost);
 
@@ -353,5 +581,5 @@ async function sendFriendRequest(id){const {error}=await supabase.from('friendsh
 function saveToLibrary(item){const items=JSON.parse(localStorage.getItem('chromi_library')||'[]');if(!items.some(x=>x.id===item.id&&x.type===item.type)){items.unshift(item);localStorage.setItem('chromi_library',JSON.stringify(items));toast('Guardado en tu biblioteca.')}else toast('Ya está en tu biblioteca.');}
 renderConversations();$('#messageFilter').oninput=renderConversations;$('#chatBack').onclick=()=>$('.messages-wrap').classList.remove('chat-open');$('#newChat').onclick=()=>state.user?openSocial():openOnboarding('landing');$('#chatInfo').onclick=()=>toast('Chat privado protegido por RLS.');$('#chatForm').onsubmit=async e=>{e.preventDefault();const input=$('#chatInput'),text=input.value.trim();if(!text)return;if(activeConversation?.userId){await sendSocialMessage(text);input.value='';return;}const row=document.createElement('div');row.className='bubble user';row.textContent=text;$('#chatBody').appendChild(row);input.value='';$('#chatBody').scrollTop=$('#chatBody').scrollHeight;try{const r=await fetch(apiUrl('/api/chat'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:text,usuario:state.profile?.display_name||'Usuario'})});const d=await r.json();const bot=document.createElement('div');bot.className='bubble bot';bot.textContent=d.respuesta||'No pude responder ahora.';$('#chatBody').appendChild(bot);$('#chatBody').scrollTop=$('#chatBody').scrollHeight}catch{toast('Chromi no pudo responder desde el backend.','error')} };
 window.addEventListener('hashchange',()=>{const r=location.hash.slice(1);if(['home','sekaifeed','search','messages'].includes(r))setRoute(r,false)});
-(async()=>{setRoute(location.hash.slice(1)||'home',false);await initSupabase();if(supabaseReady)await initAuth();if(state.user)loadSekaiFeed();if(!localStorage.getItem('chromi_onboarding_seen')&&!state.user)setTimeout(()=>openOnboarding('landing'),150);})();
+(async()=>{setRoute(location.hash.slice(1)||'home',false);await initSupabase();if(supabaseReady)await initAuth();if(state.user)loadSekaiFeed();if(!localStorage.getItem('chromi_onboarding_seen')&&!state.user)setTimeout(()=>openOnboarding('intro1'),200);})();
 })();
