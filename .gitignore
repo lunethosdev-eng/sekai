@@ -1,0 +1,5 @@
+node_modules/
+.env
+android/chromi-release.jks
+android/keystore.properties
+android/app/src/main/assets/www/

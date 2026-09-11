@@ -1,0 +1,53 @@
+plugins { id 'com.android.application' }
+
+import java.util.Properties
+
+def keystoreProperties = new Properties()
+def keystoreFile = rootProject.file('chromi-release.jks')
+if (keystoreFile.exists()) {
+    keystoreProperties.load(new FileInputStream(rootProject.file('keystore.properties')))
+}
+
+android {
+    namespace 'com.sfxi.chromi'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.sfxi.chromi'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildFeatures { buildConfig true }
+
+    sourceSets {
+        main { assets.srcDirs = ['src/main/assets'] }
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile keystoreFile
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystoreFile.exists()) signingConfig signingConfigs.release
+        }
+    }
+}
+
+tasks.register('syncWebAssets', Copy) {
+    from rootProject.projectDir.parentFile.toPath().resolve('public').toFile()
+    into file('src/main/assets/www')
+}
+
+preBuild.dependsOn syncWebAssets
