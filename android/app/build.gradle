@@ -26,6 +26,11 @@ android {
         main { assets.srcDirs = ['src/main/assets'] }
     }
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
     signingConfigs {
         release {
             if (keystoreFile.exists()) {
@@ -42,7 +47,16 @@ android {
             minifyEnabled false
             if (keystoreFile.exists()) signingConfig signingConfigs.release
         }
+        debug {
+            minifyEnabled false
+        }
     }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
 
 tasks.register('syncWebAssets', Copy) {
