@@ -4,7 +4,8 @@
   "description": "Plataforma pública y Backend Proxy para Chromi Bot",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.0",
@@ -15,3 +16,4 @@
     "@supabase/supabase-js": "^2.57.0"
   }
 }
+
