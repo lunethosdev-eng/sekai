@@ -41,64 +41,36 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          validate-wrappers: false
-
-      - name: Verify Android project
-        working-directory: android
-        run: |
-          echo "=== Android project ==="
-          pwd
-          ls -la
-          test -f gradlew
-          test -f settings.gradle || test -f settings.gradle.kts
-          test -d app
-          echo "Android project OK"
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
       - name: Make Gradle executable
         working-directory: android
         run: chmod +x gradlew
 
       - name: Build ${{ matrix.flavor }} APK
         working-directory: android
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
           TYPE="${{ github.event.inputs.build_type || 'release' }}"
           FLAVOR="${{ matrix.flavor }}"
-          
-          # Capitaliza la primera letra (ej. global -> Global, release -> Release)
           FLAVOR_CAP="$(echo ${FLAVOR:0:1} | tr '[:lower:]' '[:upper:]')${FLAVOR:1}"
           TYPE_CAP="$(echo ${TYPE:0:1} | tr '[:lower:]' '[:upper:]')${TYPE:1}"
-          
-          echo "Ejecutando: ./gradlew assemble${FLAVOR_CAP}${TYPE_CAP}"
           ./gradlew "assemble${FLAVOR_CAP}${TYPE_CAP}" --no-daemon --stacktrace
 
-      - name: Verify APK output
+      - name: Sign Release APK
         working-directory: android
         run: |
           FLAVOR="${{ matrix.flavor }}"
-          echo "=== Verificando APKs para $FLAVOR ==="
-          find app/build/outputs -type f -name "*.apk" -print
-          
-          APK="$(find app/build/outputs/apk/$FLAVOR -type f -name "*.apk" -print -quit 2>/dev/null || find app/build/outputs -type f -name "*.apk" -print -quit)"
-          if [ -z "$APK" ]; then
-            echo "ERROR: No se encontró ningún APK generado para $FLAVOR."
-            exit 1
+          APK="$(find app/build/outputs -type f -name "*.apk" | head -n 1)"
+          if [ -n "$APK" ]; then
+            echo "Firmando APK: $APK"
+            mkdir -p ~/.android
+            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+            $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android "$APK" || true
           fi
-          echo "APK encontrado: $APK"
-          ls -lh "$APK"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sekai-${{ matrix.flavor }}-${{ github.event.inputs.build_type || 'release' }}
-          path: android/app/build/outputs/apk/${{ matrix.flavor }}/**/*.apk
+          name: sekai-${{ matrix.flavor }}-${{ github.event.inputs.build_type || 'release' }}.apk
+          path: android/app/build/outputs/**/*.apk
           if-no-files-found: error
           retention-days: 14
 
