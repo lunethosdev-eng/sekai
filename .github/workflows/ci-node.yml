@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   node:
@@ -16,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -78,3 +79,4 @@ jobs:
             README.md
             .env.example
           if-no-files-found: warn
+          retention-days: 14
