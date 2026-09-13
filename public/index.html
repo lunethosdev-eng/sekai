@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f7f7fb"><title>Chromi · Sekai</title>
+<meta name="theme-color" content="#fbfaff"><meta name="color-scheme" content="light"><title>Sekai</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,85 +11,47 @@
 <body>
 <div id="app">
 <header class="topbar">
-  <button class="brand" data-route="home"><span class="brand-mark">C</span><span><b>Chromi</b><small>SEKAI</small></span></button>
-  <nav><button data-route="home" class="nav-btn active">Home</button><button data-route="sekaifeed" class="nav-btn">Sekai</button><button data-route="search" class="nav-btn">Search</button><button data-route="messages" class="nav-btn">Messages<span id="unreadDot" hidden></span></button></nav>
-  <div class="top-actions"><button id="topAccount" class="account-pill"><span class="mini-avatar">C</span><span id="topName">Guest</span></button></div>
+  <button class="brand" data-route="home"><span class="brand-mark">✦</span><span><b>Sekai</b></span></button>
+  <nav><button data-route="home" class="nav-btn active">Inicio</button><button data-route="search" class="nav-btn">Buscar</button><button data-route="messages" class="nav-btn">Mensajes<span id="unreadDot" hidden></span></button></nav>
+  <div class="top-actions"><button id="topAccount" class="account-pill"><span class="mini-avatar">U</span><span id="topName">Cuenta</span></button></div>
 </header>
 <main>
 <section class="page active" id="page-home">
-  <div class="home-mobile">
-   <div class="home-greeting">
-    <div>
-     <span class="eyebrow">SEKAI</span>
-     <h1>Hola <em id="homeHello">nakama</em></h1>
-     <p id="homeSub">Tu espacio para buscar, conectar y explorar.</p>
-    </div>
-    <button class="home-avatar" id="profileHome" aria-label="Perfil"><span class="mini-avatar">C</span></button>
-   </div>
-
-   <button type="button" class="home-search-pill" data-route="search">
-    <span>⌕</span>
-    <span>Buscar en Chromi…</span>
-   </button>
-
-   <div class="home-quick">
-    <button type="button" class="quick-tile" data-route="search"><span>⌕</span><b>Search</b></button>
-    <button type="button" class="quick-tile" data-route="sekaifeed"><span>◉</span><b>Sekai</b></button>
-    <button type="button" class="quick-tile" data-route="messages"><span>◌</span><b>Chat</b></button>
-    <button type="button" class="quick-tile" id="homeLibrary"><span>▤</span><b>Library</b></button>
-   </div>
-
-   <div class="home-status"><i></i> Chromi online · motor DuckDuckGo</div>
-
-   <div class="section-title tight"><div><span class="eyebrow">DESTACADOS</span><h2>Para ti</h2></div></div>
-   <div class="discover-scroll">
-    <article class="discover-card" data-route="search"><img src="assets/1000059279-Photoroom.png" alt=""><div><b>Explora la web</b><small>Resultados propios en Chromi</small></div></article>
-    <article class="discover-card" data-route="search"><img src="assets/1000059280-Photoroom.png" alt=""><div><b>Anime & Manga</b><small>Si encaja, aparece en Search</small></div></article>
-    <article class="discover-card" data-route="messages"><img src="assets/1000059282-Photoroom.png" alt=""><div><b>Mensajes</b><small>Habla con Chromi y amigos</small></div></article>
-   </div>
-
-   <div class="section-title tight"><div><span class="eyebrow">ACCESOS</span><h2>Tu espacio</h2></div></div>
-   <div class="home-list">
-    <button class="home-row" data-route="search"><span class="row-ic">⌕</span><div><b>Chromi Search</b><small>Web · anime · usuarios</small></div><span class="arrow">›</span></button>
-    <button class="home-row" data-route="messages"><span class="row-ic">◌</span><div><b>Messages</b><small>Chats y Chromi</small></div><span class="arrow">›</span></button>
-    <button class="home-row" id="profileHome2"><span class="row-ic">C</span><div><b>Perfil</b><small id="homeProfileText">Personaliza tu cuenta</small></div><span class="arrow">›</span></button>
-   </div>
-  </div>
+ <div class="home-mobile">
+  <header class="mobile-home-head"><button class="home-brand" data-route="home"><span>✦</span><b>Sekai</b></button><div class="home-head-actions"><button data-route="search" aria-label="Buscar">⌕</button><button id="homeBell" aria-label="Notificaciones">♧</button></div></header>
+  <div class="story-row" id="storyRow"></div>
+  <button class="thought-box" id="homeCompose"><span class="thought-avatar" id="homeThoughtAvatar">U</span><span>¿Qué estás pensando?</span><b>✎</b></button>
+  <div class="home-feed" id="homeFeed"><div class="empty-state">Cargando publicaciones…</div></div>
+ </div>
 </section>
+
 <section class="page" id="page-search">
- <div class="browser-full search-clean">
-  <form class="omnibox" id="searchForm">
-   <span class="omni-icon">⌕</span>
-   <input id="searchInput" placeholder="Buscar en Chromi…" autocomplete="off" enterkeyhint="search">
-   <button type="submit" class="omni-go" aria-label="Buscar">→</button>
-  </form>
-  <div id="searchView" class="search-view"><span class="big-mark">C</span><h1>Search</h1><p>Un solo motor: web, anime, manga y usuarios juntos.</p></div>
+ <div class="search-screen">
+  <header class="mobile-page-head"><button class="home-brand" data-route="home"><span>✦</span><b>Sekai</b></button><div><button>♧</button></div></header>
+  <form class="omnibox" id="searchForm"><span class="omni-icon">⌕</span><input id="searchInput" placeholder="Buscar en Sekai..." autocomplete="off" enterkeyhint="search"><button type="submit" class="omni-go" aria-label="Buscar">→</button></form>
+  <div class="search-tabs" id="searchTabs" role="tablist"><button class="active" data-search-type="all">Todo</button><button data-search-type="anime">Anime</button><button data-search-type="manga">Manga</button><button data-search-type="users">Personas</button><button data-search-type="web">Web</button></div>
+  <div class="trend-block" id="trendBlock" hidden></div>
+  <div id="searchView" class="search-view"><span class="big-mark">✦</span><h1>Busca en tu Sekai</h1><p>Anime, manga, personas y web, todo desde un solo lugar.</p></div>
   <div id="searchResults" class="serp"></div>
-  <div id="webBrowserFrame" class="web-browser-frame" hidden>
-   <div class="web-browser-toolbar">
-    <button id="browserBack2" type="button" aria-label="Cerrar">✕</button>
-    <button id="webOpenExternal" type="button">↗</button>
-    <span id="webBrowserUrl">Chromi</span>
-    <button id="browserRefresh" type="button" aria-label="Recargar">↻</button>
-   </div>
-   <iframe id="webFrame" title="Chromi Browser" sandbox="allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe>
-  </div>
+  <div id="webBrowserFrame" class="web-browser-frame" hidden><div class="web-browser-toolbar"><button id="browserBack2" type="button">✕</button><button id="webOpenExternal" type="button">↗</button><span id="webBrowserUrl">Sekai</span><button id="browserRefresh" type="button">↻</button></div><iframe id="webFrame" title="Sekai Browser" sandbox="allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe></div>
  </div>
 </section>
-<section class="page" id="page-sekaifeed">
- <div class="sekai-page">
-  <div class="sekai-head"><div><span class="eyebrow">SEKAI</span><h1>Comparte tu mundo.</h1><p>Posts, arts, Shorts y videos largos en un solo feed.</p></div><button class="primary" id="createPostBtn">＋ Publicar</button></div>
-  <div class="sekai-tabs"><button class="active" data-feed="all">Para ti</button><button data-feed="short">Shorts</button><button data-feed="video">Videos</button><button data-feed="art">Arts</button><button data-feed="image">Posts</button></div>
-  <div id="sekaiFeed" class="sekai-feed"><div class="empty-state">Cargando Sekai…</div></div>
+
+<section class="page" id="page-sekaifeed"><div class="sekai-page"><header class="mobile-page-head"><button class="home-brand" data-route="home"><span>✦</span><b>Sekai</b></button><button id="createPostBtn" class="primary small-primary">＋</button></header><div class="sekai-head"><div><span class="eyebrow">SEKAI</span><h1>Comparte tu mundo.</h1><p>Posts, arts, Shorts y videos en un solo feed.</p></div><button class="primary" id="createPostBtnDesktop">＋ Publicar</button></div><div class="sekai-tabs"><button class="active" data-feed="all">Para ti</button><button data-feed="short">Shorts</button><button data-feed="video">Videos</button><button data-feed="art">Arts</button><button data-feed="image">Posts</button></div><div id="sekaiFeed" class="sekai-feed"><div class="empty-state">Cargando Sekai…</div></div></div></section>
+
+<section class="page" id="page-messages">
+ <div class="messages-wrap">
+  <aside class="inbox"><header class="messages-head"><div><span class="eyebrow">SEKAI</span><h1>Mensajes</h1></div><button id="messageBell">♧</button></header><label class="message-search">⌕<input id="messageFilter" placeholder="Buscar conversaciones..."></label><div class="message-shortcuts"><button id="newChat"><span>▣</span><small>Nuevo chat</small></button><button id="groupsBtn"><span>♧</span><small>Grupos</small></button><button id="requestsBtn"><span>♧</span><small>Solicitudes</small><i id="requestBadge" hidden></i></button></div><div id="conversationList"></div></aside>
+  <section class="chat"><header><div class="chat-user"><button id="chatBack" class="chat-back" aria-label="Volver">‹</button><span class="mini-avatar">C</span><div><b id="chatTitle">Chromi</b><small id="chatStatus">En línea</small></div></div><button id="chatInfo">ⓘ</button></header><div class="chat-body" id="chatBody"><div class="welcome-chat"><span class="big-mark">✦</span><h2>Chromi</h2><p>Escribe abajo o elige una sugerencia.</p></div></div><div class="chromi-chips" id="chromiChips"><button type="button" class="chip" data-chromi-prompt="Recomiéndame algo según mi humor">✨ Recomienda</button><button type="button" class="chip" data-chromi-prompt="Cuéntame un dato friki de anime">🎲 Dato friki</button><button type="button" class="chip" data-chromi-prompt="Ayúdame a usar Sekai">◉ Ayuda</button></div><form id="chatForm"><input id="chatInput" placeholder="Escribe un mensaje..." autocomplete="off"><button>➤</button></form></section>
  </div>
 </section>
-<section class="page" id="page-messages"><div class="messages-wrap"><aside class="inbox"><div class="section-title"><div><span class="eyebrow">SEKAI</span><h1>Messages</h1></div><button id="newChat">＋</button></div><label class="message-search">⌕<input id="messageFilter" placeholder="Buscar personas o chats"></label><div id="conversationList"></div></aside><section class="chat"><header><div class="chat-user"><button id="chatBack" class="chat-back" aria-label="Volver">‹</button><span class="mini-avatar">C</span><div><b id="chatTitle">Chromi</b><small id="chatStatus">Asistente · En línea</small></div></div><button id="chatInfo">ⓘ</button></header><div class="chat-body" id="chatBody"><div class="welcome-chat"><span class="big-mark">C</span><h2>Tu espacio de mensajes</h2><p>Habla con Chromi o, cuando tengas amigos, inicia una conversación con ellos.</p></div></div><form id="chatForm"><input id="chatInput" placeholder="Escribe un mensaje..." autocomplete="off"><button>➤</button></form></section></div></section>
+
+<section class="page page-profile" id="page-profile"><div class="profile-screen"><div class="profile-cover" id="profileCover"></div><div class="profile-content"><div class="profile-topline"><button class="profile-back" data-route="home">‹</button><div class="profile-actions-top"><button id="profileEditFull" class="glass-btn">Editar</button><button id="profileMoreFull" class="icon-btn">•••</button></div></div><div class="profile-identity-row"><div class="profile-avatar-xl full" id="profileAvatarFull">U</div><div class="profile-identity"><div class="profile-name-line"><h1 id="profileNameFull">Usuario</h1><span class="verified-dot">✓</span></div><p id="profileHandleFull">@usuario</p><div id="profileStatusFull" class="profile-status-pill" hidden></div></div></div><p id="profileBioFull" class="profile-bio large">Sin bio todavía.</p><div class="profile-stats"><div><b id="statPosts">0</b><span>Publicaciones</span></div><div><b id="statFollowers">0</b><span>Seguidores</span></div><div><b id="statFollowing">0</b><span>Siguiendo</span></div></div><div class="profile-id-box premium"><div><span class="id-icon">▣</span><div><small>ID DE SEKAI</small><code id="profileIdFull">#SK-00000</code></div></div><button id="copyProfileId">□</button></div><div class="profile-tabs-full"><button class="active" data-profile-tab="posts">Publicaciones</button><button data-profile-tab="info">Información</button><button data-profile-tab="friends">Amigos</button></div><div id="profileTabContent" class="profile-tab-content"></div></div></div></section>
 </main>
-<nav class="bottom-nav"><button data-route="home" class="active">⌂<small>Home</small></button><button data-route="sekaifeed">◉<small>Sekai</small></button><button data-route="search">⌕<small>Search</small></button><button data-route="messages">◌<small>Messages</small></button></nav>
+<nav class="bottom-nav"><button data-route="home" class="active">⌂<small>Inicio</small></button><button data-route="search">⌕<small>Buscar</small></button><button class="create-center" data-route="sekaifeed">＋</button><button data-route="messages">◌<small>Mensajes</small></button><button data-route="profile">♙<small>Perfil</small></button></nav>
 </div>
-<div id="onboarding" class="overlay onboarding-overlay" hidden><div class="onboarding"><div class="onboard-progress"><span class="progress-dot active"></span><span class="progress-dot"></span><span class="progress-dot"></span></div><div id="onboardContent"></div></div></div>
+<div id="onboarding" class="overlay onboarding-overlay" hidden><div class="onboarding"><div id="onboardContent"></div></div></div>
 <div id="modal" class="overlay" hidden><div class="modal"><button class="close-x" id="modalClose">×</button><div id="modalContent"></div></div></div>
 <div id="toastHost" class="toast-host"></div>
-<script src="runtime-config.js"></script>
-<script src="app.js"></script>
+<script src="runtime-config.js"></script><script src="app.js"></script>
 </body></html>
