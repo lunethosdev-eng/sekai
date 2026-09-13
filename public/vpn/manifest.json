@@ -1,0 +1,20 @@
+{
+  "provider": "vpnbook",
+  "format": "ovpn",
+  "auth": "user-pass",
+  "credentialsFile": "credentials.txt",
+  "userConfigRequired": false,
+  "profiles": [
+    "vpnbook-us16-udp53.ovpn",
+    "vpnbook-us178-udp53.ovpn",
+    "vpnbook-uk68-udp53.ovpn",
+    "vpnbook-uk205-udp53.ovpn",
+    "vpnbook-de20-udp53.ovpn",
+    "vpnbook-de220-udp53.ovpn",
+    "vpnbook-fr200-udp53.ovpn",
+    "vpnbook-fr2311-udp53.ovpn",
+    "vpnbook-ca149-udp53.ovpn",
+    "vpnbook-ca196-udp53.ovpn"
+  ],
+  "instructions": "El usuario final no configura nada. Solo acepta el permiso VPN del sistema. El dueño de la app actualiza credentials.txt antes de compilar."
+}
