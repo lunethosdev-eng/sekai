@@ -18,12 +18,56 @@ android {
         targetSdk 35
         versionCode 1
         versionName '1.0.0'
+        buildConfigField "String", "APP_FLAVOR", "\"global\""
+        buildConfigField "boolean", "IS_DEV", "false"
+        buildConfigField "boolean", "IS_OWNER", "false"
+        buildConfigField "boolean", "SHOW_DEV_MENU", "false"
     }
 
     buildFeatures { buildConfig true }
 
+    flavorDimensions "audience"
+    productFlavors {
+        // 1) APK para todos los usuarios (Play Store / público)
+        global {
+            dimension "audience"
+            applicationIdSuffix ""
+            versionNameSuffix ""
+            resValue "string", "app_name", "Sekai"
+            buildConfigField "String", "APP_FLAVOR", "\"global\""
+            buildConfigField "boolean", "IS_DEV", "false"
+            buildConfigField "boolean", "IS_OWNER", "false"
+            buildConfigField "boolean", "SHOW_DEV_MENU", "false"
+        }
+        // 2) APK para el equipo de desarrollo
+        team {
+            dimension "audience"
+            applicationIdSuffix ".team"
+            versionNameSuffix "-team"
+            resValue "string", "app_name", "Sekai Team"
+            buildConfigField "String", "APP_FLAVOR", "\"team\""
+            buildConfigField "boolean", "IS_DEV", "true"
+            buildConfigField "boolean", "IS_OWNER", "false"
+            buildConfigField "boolean", "SHOW_DEV_MENU", "true"
+        }
+        // 3) APK del owner (tú) — superior al de team
+        owner {
+            dimension "audience"
+            applicationIdSuffix ".owner"
+            versionNameSuffix "-owner"
+            resValue "string", "app_name", "Sekai Owner"
+            buildConfigField "String", "APP_FLAVOR", "\"owner\""
+            buildConfigField "boolean", "IS_DEV", "true"
+            buildConfigField "boolean", "IS_OWNER", "true"
+            buildConfigField "boolean", "SHOW_DEV_MENU", "true"
+        }
+    }
+
     sourceSets {
-        main { assets.srcDirs = ['src/main/assets'] }
+        main {
+            assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
     }
 
     compileOptions {
@@ -49,6 +93,7 @@ android {
         }
         debug {
             minifyEnabled false
+            applicationIdSuffix ".debug"
         }
     }
 }

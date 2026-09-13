@@ -6,9 +6,11 @@ try {
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const dns = require('dns').promises;
 const net = require('net');
 const QRCode = require('qrcode');
+const { createSearchEngine } = require('./lib/sekai-search');
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 
 const app = express();
@@ -17,6 +19,13 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const searchEngine = createSearchEngine({
+    indexPath: process.env.SEARCH_INDEX_PATH || path.join(__dirname, 'data', 'search-index.json'),
+    seeds: String(process.env.SEARCH_SEEDS || '').split(',').map(s => s.trim()).filter(Boolean),
+    maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES || 200),
+    userAgent: process.env.SEARCH_USER_AGENT || 'SekaiBot/1.0 (+search crawler)'
+});
 
 // Public Supabase configuration. The anon key is intended for browser use; never expose a service-role key.
 app.get('/api/config', (req, res) => {
@@ -27,7 +36,13 @@ app.get('/api/config', (req, res) => {
         // Compatibilidad con builds antiguas. Preferir SUPABASE_PUBLISHABLE_KEY.
         supabaseAnonKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '',
         hoshiUrl: process.env.HOSHI_URL || 'https://backendv3-188.onrender.com',
-        browserEngine: process.env.BROWSER_ENGINE || 'hoshi'
+        browserEngine: process.env.BROWSER_ENGINE || 'local',
+        searchEngine: 'sekai-index',
+        network: {
+            proxy: true,
+            privateDns: true,
+            vpn: 'manual-ovpn'
+        }
     });
 });
 
@@ -51,6 +66,17 @@ async function initWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 }
 initWhatsApp();
+
+// Crawler opcional. Se activa por entorno para no gastar recursos inesperadamente.
+if (String(process.env.SEARCH_CRAWL_ON_START || '').toLowerCase() === 'true') {
+    setTimeout(() => searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 }).catch(err => console.error('Initial search crawl:', err)), 5000);
+}
+const crawlIntervalMinutes = Number(process.env.SEARCH_CRAWL_INTERVAL_MINUTES || 0);
+if (crawlIntervalMinutes > 0) {
+    setInterval(() => {
+        if (!searchEngine.isCrawling()) searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 }).catch(err => console.error('Scheduled search crawl:', err));
+    }, crawlIntervalMinutes * 60 * 1000);
+}
 
 // Endpoint para solicitar QR
 app.get('/api/request-qr', (req, res) => {
@@ -211,10 +237,13 @@ app.get('/api/manga/chapter/:chapterId/pages', async (req, res) => {
         if (!base || !hash || !files.length) {
             return res.status(502).json({ error: 'Este capítulo no tiene páginas disponibles.' });
         }
-        const pages = files.map((file, i) => ({
-            index: i + 1,
-            url: `${base}/${quality}/${hash}/${file}`
-        }));
+        const pages = files.map((file, i) => {
+            const remote = `${base}/${quality}/${hash}/${file}`;
+            return {
+                index: i + 1,
+                url: `/api/manga/page?u=${encodeURIComponent(remote)}`
+            };
+        });
         res.json({ source: 'mangadex', chapterId, total: pages.length, pages });
     } catch (error) {
         console.error('MangaDex pages:', error.message);
@@ -352,170 +381,88 @@ app.get('/api/search/characters', async (req, res) => {
 
 app.get('/api/search/web', async (req, res) => {
     const q = String(req.query.q || '').trim();
-    if (!q) return res.json({ source: 'chromi-web', query: q, data: [], knowledge: null, questions: [] });
+    const type = String(req.query.type || 'all').toLowerCase();
+    if (!q) return res.json({ source: 'sekai-index', query: q, data: [], knowledge: null, questions: [] });
 
-    const results = [];
-    let knowledge = null;
-    const strip = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    const seen = new Set();
-
-    const pushResult = (item) => {
-        if (!item || !item.url) return;
-        let key = item.url;
-        try { key = new URL(item.url).hostname + new URL(item.url).pathname; } catch (_) {}
-        if (seen.has(key)) return;
-        seen.add(key);
-        results.push(item);
-    };
-
-    // 1) DuckDuckGo Instant Answer API (fiable, JSON)
     try {
-        const ddg = await fetchJson(
-            `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`,
-            { timeout: 10000 }
-        );
-        if (ddg?.Heading && (ddg.Abstract || ddg.AbstractText)) {
-            knowledge = {
-                type: 'knowledge',
-                source: ddg.AbstractSource || 'DuckDuckGo',
-                title: ddg.Heading,
-                description: ddg.AbstractText || ddg.Abstract || '',
-                extract: ddg.AbstractText || ddg.Abstract || '',
-                cover: ddg.Image ? (ddg.Image.startsWith('http') ? ddg.Image : `https://duckduckgo.com${ddg.Image}`) : '',
-                url: ddg.AbstractURL || ddg.Redirect || ''
-            };
-        }
-        const related = Array.isArray(ddg?.RelatedTopics) ? ddg.RelatedTopics : [];
-        for (const t of related) {
-            if (t.Topics && Array.isArray(t.Topics)) {
-                for (const sub of t.Topics.slice(0, 3)) {
-                    if (sub.FirstURL && sub.Text) {
-                        pushResult({
-                            type: 'web',
-                            source: 'DuckDuckGo',
-                            badge: 'WEB',
-                            title: sub.Text.split(' - ')[0].slice(0, 120),
-                            description: sub.Text,
-                            url: sub.FirstURL,
-                            host: (() => { try { return new URL(sub.FirstURL).hostname.replace(/^www\./,''); } catch { return ''; } })()
-                        });
-                    }
-                }
-            } else if (t.FirstURL && t.Text) {
-                pushResult({
-                    type: 'web',
-                    source: 'DuckDuckGo',
-                    badge: 'WEB',
-                    title: t.Text.split(' - ')[0].slice(0, 120),
-                    description: t.Text,
-                    url: t.FirstURL,
-                    host: (() => { try { return new URL(t.FirstURL).hostname.replace(/^www\./,''); } catch { return ''; } })()
-                });
-            }
-            if (results.length >= 10) break;
-        }
-    } catch (e) {
-        console.error('DDG instant:', e.message);
-    }
-
-    // 2) DuckDuckGo HTML (resultados clásicos)
-    try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
-        const r = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; ChromiBot/1.0)',
-                'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
-            }
+        const out = searchEngine.search(q, { type, limit: 30 });
+        const questions = [
+            { title: `¿Qué es ${q}?`, query: `qué es ${q}` },
+            { title: `${q} wiki`, query: `${q} wiki` },
+            { title: `${q} noticias`, query: `${q} noticias` }
+        ];
+        res.json({
+            source: 'sekai-index',
+            engine: 'sekai-own-index',
+            query: q,
+            type,
+            indexedPages: searchEngine.stats().pages,
+            knowledge: out.knowledge || null,
+            questions,
+            data: out.results
         });
-        clearTimeout(timer);
-        if (r.ok) {
-            const html = await r.text();
-            const linkRe = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-            const snipRe = /class="result__snippet"[^>]*>([\s\S]*?)<\/(?:a|td|div)/gi;
-            const links = [];
-            let m;
-            while ((m = linkRe.exec(html)) !== null) links.push({ href: m[1], title: strip(m[2]) });
-            const snips = [];
-            while ((m = snipRe.exec(html)) !== null) snips.push(strip(m[1]));
-            links.forEach((L, i) => {
-                let url = L.href;
-                try {
-                    if (url.includes('uddg=')) {
-                        const u = new URL(url, 'https://duckduckgo.com');
-                        url = decodeURIComponent(u.searchParams.get('uddg') || url);
-                    }
-                } catch (_) {}
-                if (!/^https?:\/\//i.test(url)) return;
-                let host = '';
-                try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
-                // filtrar basura de tracking
-                if (/duckduckgo\.com|google\.com\/search/i.test(host)) return;
-                pushResult({
-                    type: 'web',
-                    source: 'DuckDuckGo',
-                    badge: 'WEB',
-                    title: L.title || host || url,
-                    description: snips[i] || '',
-                    url,
-                    host
-                });
-            });
-        }
     } catch (e) {
-        console.error('DDG HTML:', e.message);
+        console.error('Sekai Search:', e.message);
+        res.status(500).json({ source: 'sekai-index', query: q, data: [], error: 'Error en el índice de Sekai' });
     }
+});
 
-    // 3) Wikipedia knowledge si aún no hay
-    if (!knowledge) {
-        try {
-            for (const lang of ['es', 'en']) {
-                const open = await fetchJson(
-                    `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=3&namespace=0&format=json`,
-                    { timeout: 6000 }
-                );
-                const titles = open?.[1] || [];
-                if (!titles.length) continue;
-                const title = titles[0];
-                try {
-                    const sum = await fetchJson(
-                        `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
-                        { timeout: 6000 }
-                    );
-                    if (sum?.extract) {
-                        knowledge = {
-                            type: 'knowledge',
-                            source: `Wikipedia (${lang})`,
-                            title: sum.title || title,
-                            description: sum.description || '',
-                            extract: sum.extract,
-                            cover: sum.thumbnail?.source || '',
-                            url: sum.content_urls?.desktop?.page || open[3]?.[0] || ''
-                        };
-                        break;
-                    }
-                } catch (_) {}
-            }
-        } catch (e) {
-            console.error('wiki:', e.message);
-        }
+app.get('/api/search/stats', (req, res) => {
+    res.json(searchEngine.stats());
+});
+
+app.post('/api/search/crawl', async (req, res) => {
+    const expected = String(process.env.SEARCH_ADMIN_TOKEN || '').trim();
+    if (!expected || String(req.get('x-search-token') || '') !== expected) {
+        return res.status(401).json({ error: 'No autorizado' });
     }
+    if (searchEngine.isCrawling()) return res.status(409).json({ error: 'El crawler ya está ejecutándose' });
+    const maxPages = Math.min(Math.max(Number(req.body?.maxPages) || 200, 1), 5000);
+    const seeds = Array.isArray(req.body?.seeds) ? req.body.seeds : undefined;
+    searchEngine.crawl({ maxPages, seeds }).catch(err => console.error('Sekai crawler:', err));
+    res.status(202).json({ ok: true, message: 'Crawler iniciado', maxPages });
+});
 
-    // 4) Preguntas relacionadas simples
-    const questions = [
-        { title: `¿Qué es ${q}?`, query: `qué es ${q}` },
-        { title: `${q} wiki`, query: `${q} wikipedia` },
-        { title: `${q} resumen`, query: `${q} resumen` }
-    ];
+app.get('/api/search/crawl/status', (req, res) => res.json(searchEngine.crawlStatus()));
 
+app.get('/api/dns/resolve', async (req, res) => {
+    const name = String(req.query.name || '').trim().toLowerCase();
+    const type = String(req.query.type || 'A').toUpperCase();
+    if (!/^[a-z0-9.-]{1,253}$/i.test(name) || !/^(A|AAAA|TXT|CNAME)$/i.test(type)) {
+        return res.status(400).json({ error: 'Dominio o tipo DNS inválido' });
+    }
+    try {
+        const upstream = process.env.DOH_UPSTREAM || 'https://cloudflare-dns.com/dns-query';
+        const r = await fetch(`${upstream}?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`, {
+            headers: { accept: 'application/dns-json' },
+            signal: AbortSignal.timeout(8000)
+        });
+        const data = await r.json();
+        res.set('Cache-Control', 'private, max-age=60');
+        res.json({ resolver: 'Sekai Private DNS', upstream: new URL(upstream).hostname, ...data });
+    } catch (e) {
+        res.status(502).json({ error: 'No se pudo resolver el dominio', detail: e.message });
+    }
+});
+
+app.get('/api/vpn/profiles', (req, res) => {
+    const vpnDir = path.join(__dirname, 'public', 'vpn');
+    let profiles = [];
+    try {
+        profiles = fs.readdirSync(vpnDir).filter(name => /\.ovpn$/i.test(name)).map(name => ({
+            name,
+            path: `/vpn/${encodeURIComponent(name)}`,
+            format: 'ovpn'
+        }));
+    } catch (_) {}
+    res.json({ provider: 'manual', profiles });
+});
+
+app.get('/api/network/status', (req, res) => {
     res.json({
-        source: 'chromi-web',
-        query: q,
-        engine: 'duckduckgo+wiki',
-        knowledge,
-        questions,
-        data: results.slice(0, 15)
+        proxy: { enabled: true, endpoint: '/api/browser' },
+        privateDns: { enabled: true, endpoint: '/api/dns/resolve', protocol: 'DoH' },
+        vpn: { enabled: false, mode: 'manual-ovpn', directory: '/vpn', message: 'Añade tus archivos .ovpn en public/vpn y configúralos en el cliente VPN.' }
     });
 });
 
@@ -601,5 +548,4 @@ app.post('/api/chat', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor activo en http://localhost:${PORT}`);
 });
-
 

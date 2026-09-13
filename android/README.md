@@ -1,11 +1,45 @@
-# Chromi Android build
+# Sekai Android
 
-Package/applicationId: `com.sfxi.chromi`
+Package / applicationId: `com.sfxi.chromi`  
+Label de la app: **Sekai**
 
-The Android app is a native WebView shell around `../public`. Gradle copies the web app into `app/src/main/assets/www` during `preBuild`.
+Shell WebView sobre `../public`. Gradle copia el frontend a `app/src/main/assets/www` en `preBuild`.
 
-The Node/Express backend is **not** bundled into the APK. Set the GitHub repository variable `CHROMI_API_BASE_URL` to a public HTTPS URL for the backend before relying on `/api/chat` and the server-side search proxy.
+El backend Node **no** va dentro del APK. Define en GitHub la variable `CHROMI_API_BASE_URL` con la URL HTTPS del servidor.
 
-For Google OAuth in the APK, the Android OAuth client must use the exact applicationId above and the SHA-1 of the release signing certificate. Supabase must allow the redirect URL `chromi://auth-callback`, and the Google provider must use the Web OAuth client for the Supabase callback.
+## Build local
 
-The release signing keystore is injected only in GitHub Actions through repository secrets. Never commit the `.jks` or `keystore.properties`.
+```bash
+./gradlew assembleDebug
+```
+
+## GitHub Actions
+
+Workflow: `.github/workflows/android.yml`
+
+Secrets de firmado (opcional, solo release):
+
+- `KEYSTORE_BASE64`
+- `KEYSTORE_PASSWORD`
+- `KEY_ALIAS`
+- `KEY_PASSWORD`
+
+OAuth: applicationId exacto + SHA-1 del keystore. Redirect: `chromi://auth-callback`.
+
+
+## VPN integrada
+
+Código en `app/src/main/java/com/sfxi/chromi/vpn/`:
+
+- `SekaiVpnService` — VpnService del sistema
+- `VpnManager` — permiso + arranque/parada
+- `VpnCredentials` / `VpnProfileHelper` — credenciales y .ovpn embebidos
+
+El usuario no configura nada. Solo acepta el diálogo de Android.
+
+```js
+AndroidBridge.connectVpn("");  // o nombre de .ovpn
+AndroidBridge.disconnectVpn();
+```
+
+Ver `../VPN_SETUP.md`.

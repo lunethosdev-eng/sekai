@@ -687,4 +687,3 @@ body.cinema-mode:hover .topbar { opacity:1; }
 /* Shorts snap hint */
 .shorts-snap { scroll-snap-type: y mandatory; overflow-y: auto; height: 100dvh; }
 .shorts-snap .short-slide { scroll-snap-align: start; height: 100dvh; }
-

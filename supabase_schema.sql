@@ -182,3 +182,56 @@ drop policy if exists sekai_media_owner_update on storage.objects;
 create policy sekai_media_owner_update on storage.objects for update to authenticated using(bucket_id='sekai-media' and auth.uid()::text=split_part(name,'/',1)) with check(bucket_id='sekai-media' and auth.uid()::text=split_part(name,'/',1));
 drop policy if exists sekai_media_owner_delete on storage.objects;
 create policy sekai_media_owner_delete on storage.objects for delete to authenticated using(bucket_id='sekai-media' and auth.uid()::text=split_part(name,'/',1));
+
+-- Chromi v14: profile customization (banner, theme, links, status)
+alter table public.profiles add column if not exists banner_url text;
+alter table public.profiles add column if not exists theme_color text default '#7068e8';
+alter table public.profiles add column if not exists accent_color text default '#a29cf5';
+alter table public.profiles add column if not exists status_text text default '' check (char_length(coalesce(status_text,'')) <= 48);
+alter table public.profiles add column if not exists links jsonb default '[]'::jsonb;
+
+-- Sekai Studio v15: stories, editor metadata, music references and advanced customization.
+alter table public.posts alter column media_url drop not null;
+alter table public.posts add column if not exists music_id integer;
+alter table public.posts add column if not exists music_title text;
+alter table public.posts add column if not exists music_artist text;
+alter table public.posts add column if not exists music_url text;
+alter table public.posts add column if not exists editor_data jsonb default '{}'::jsonb;
+
+alter table public.profiles add column if not exists animation_level text default 'full' check(animation_level in ('full','reduced','off'));
+alter table public.profiles add column if not exists glass_intensity numeric default 0.86 check(glass_intensity >= 0.55 and glass_intensity <= 0.96);
+alter table public.profiles add column if not exists background_mode text default 'soft' check(background_mode in ('soft','plain','night'));
+alter table public.profiles add column if not exists navigation_style text default 'normal' check(navigation_style in ('normal','compact'));
+
+create table if not exists public.stories (
+ id uuid primary key default gen_random_uuid(),
+ user_id uuid not null references public.profiles(id) on delete cascade,
+ type text not null check(type in ('note','image','video')),
+ media_url text,
+ text text not null default '' check(char_length(text)<=700),
+ background text not null default 'soft',
+ align text not null default 'center' check(align in ('left','center','right')),
+ music_id integer,
+ music_title text,
+ music_artist text,
+ music_url text,
+ created_at timestamptz not null default now(),
+ expires_at timestamptz not null
+);
+alter table public.stories enable row level security;
+drop policy if exists stories_public_read on public.stories;
+create policy stories_public_read on public.stories for select using (expires_at > now() and (auth.uid()=user_id or true));
+drop policy if exists stories_insert_own on public.stories;
+create policy stories_insert_own on public.stories for insert with check(auth.uid()=user_id);
+drop policy if exists stories_update_own on public.stories;
+create policy stories_update_own on public.stories for update using(auth.uid()=user_id) with check(auth.uid()=user_id);
+drop policy if exists stories_delete_own on public.stories;
+create policy stories_delete_own on public.stories for delete using(auth.uid()=user_id);
+
+-- Optional cleanup index for expiring stories.
+create index if not exists stories_expires_at_idx on public.stories(expires_at desc);
+create index if not exists stories_user_created_idx on public.stories(user_id,created_at desc);
+
+
+-- Solicita a PostgREST recargar el esquema tras ejecutar este archivo.
+NOTIFY pgrst, 'reload schema';

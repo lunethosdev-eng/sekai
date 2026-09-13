@@ -127,3 +127,33 @@ npm run ci
 **Sekai** · [lunethosdev-eng](https://github.com/lunethosdev-eng)
 
 Busca, conecta y arma tu Sekai.
+
+
+---
+
+## VPN integrada (el usuario no configura nada)
+
+La app incluye un `VpnService` propio. El usuario final:
+
+- No instala OpenVPN for Android ni ninguna otra app
+- No escribe usuario ni contraseña
+- No importa perfiles
+
+Solo pulsa Conectar → Android muestra el diálogo del sistema → acepta o rechaza.
+
+Tú actualizas las credenciales en `public/vpn/credentials.txt` antes de compilar.
+
+- Guía: **[VPN_SETUP.md](VPN_SETUP.md)**
+- API JS: `AndroidBridge.connectVpn("")`, `disconnectVpn()`, `listVpnProfiles()`
+
+**Nota:** la estructura nativa está lista. Para el túnel OpenVPN real falta integrar el motor nativo (ics-openvpn / OpenVPN3); ver VPN_SETUP.md.
+
+## Sekai Studio
+
+La interfaz incluye editores independientes para Story, Short, Post, Art y Video. Las Stories admiten nota, foto o video, y el sonido adicional se habilita para video. Los Shorts son publicaciones de texto vertical con opciones de tipografía, tamaño, fondo, alineación y música.
+
+Para activar las tablas nuevas de Stories, metadata de edición y personalización avanzada, ejecuta el bloque final de `supabase_schema.sql` en el SQL Editor de Supabase.
+
+### Catálogo musical
+
+El catálogo `PRISM_CATALOG` está integrado en `public/app.js`. La variable pública `PRISM_REPO` en `public/runtime-config.js` puede apuntar a la fuente que contiene la carpeta `/music/`. Si queda vacía, Sekai conserva el catálogo y busca la pista en `/music/` del mismo host, sin descargar ni añadir archivos musicales al proyecto.
