@@ -687,3 +687,19 @@ body.cinema-mode:hover .topbar { opacity:1; }
 /* Shorts snap hint */
 .shorts-snap { scroll-snap-type: y mandatory; overflow-y: auto; height: 100dvh; }
 .shorts-snap .short-slide { scroll-snap-align: start; height: 100dvh; }
+.notification-row{position:relative;text-align:left}.notification-delete{float:right;opacity:.7;padding-left:12px;font-size:1.2em}.notification-row.unread{font-weight:600}
+
+/* v17 music + lyric studio */
+.music-studio-panel{display:grid;gap:12px}.music-picker-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.music-picker-head small{display:block;color:#a9a0bb;font-size:11px;margin-top:3px}.music-search{width:100%;padding:12px 14px;border:1px solid #3a3348;border-radius:14px;background:#211b30;color:#fff}.music-opt{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:10px;border:1px solid #332b43;border-radius:14px;background:#211b30;color:#f6f1ff}.music-opt-art{width:42px;height:42px;display:grid;place-items:center;border-radius:10px;background:#33284a;overflow:hidden;flex:none}.music-opt-art img{width:100%;height:100%;object-fit:cover}.music-opt span:nth-child(2){flex:1;min-width:0}.music-opt b,.music-opt small{display:block}.music-opt b{font-size:12px}.music-opt small{font-size:10px;color:#b6acc9;margin-top:3px}.music-opt-play{color:#c9b6ff}.music-opt.active{border-color:#9b7bea;background:#302344}.music-preview{display:grid;gap:8px;padding:12px;border-radius:16px;background:#211b30;border:1px solid #443658}.music-preview audio{width:100%}.music-preview label{font-size:11px;color:#c8bdd9;display:grid;gap:6px}.music-preview output{float:right;color:#fff}.music-range-labels{display:flex;justify-content:space-between;color:#968aa9;font-size:10px}.music-preview select{padding:9px;border-radius:10px;background:#302640;color:#fff;border:1px solid #4b3c60}.story-lyrics-overlay{position:absolute;left:8%;right:8%;bottom:18%;z-index:4;text-align:center;color:#fff;text-shadow:0 2px 12px #000;pointer-events:none}.story-lyrics-overlay small{display:block;opacity:.75;font-size:10px;margin-bottom:8px}.story-lyrics-overlay strong{font-size:24px;line-height:1.2}.story-lyrics-overlay[data-style=bold] strong{font-size:34px;font-weight:900}.story-lyrics-overlay[data-style=glass]{padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.18);backdrop-filter:blur(12px)}.story-lyrics-overlay[data-style=neon] strong{color:#e9d5ff;text-shadow:0 0 12px #a78bfa,0 0 24px #7c3aed}.story-lyrics-overlay[data-style=karaoke] strong{color:#fde68a}
+
+
+/* Sekai v18 synced lyrics */
+.story-lyrics-overlay{position:absolute;left:8%;right:8%;bottom:12%;z-index:5;text-align:center;pointer-events:none;text-shadow:0 2px 12px #0009}
+.story-lyrics-overlay small{display:block;font-size:12px;opacity:.8;margin-bottom:8px}
+.lyrics-sync-lines{display:flex;flex-direction:column;gap:5px;align-items:center}
+.lyrics-sync-lines span{display:block;opacity:.5;font-size:15px;transition:all .18s ease}
+.lyrics-sync-lines span.is-current{opacity:1;font-size:22px;font-weight:800;transform:scale(1.03)}
+.story-lyrics-overlay[data-style=bold] .lyrics-sync-lines span.is-current{font-size:30px}
+.story-lyrics-overlay[data-style=glass]{background:#ffffff22;backdrop-filter:blur(14px);border:1px solid #ffffff33;border-radius:18px;padding:12px}
+.story-lyrics-overlay[data-style=neon] .lyrics-sync-lines span.is-current{color:#b9f7ff;text-shadow:0 0 14px #35d9ff}
+
