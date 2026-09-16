@@ -1,8 +1,9 @@
 try {
     require('dotenv').config();
 } catch (e) {
-    // Permite que el servidor inicie en entornos de CI/CD o producción sin la librería dotenv
+    // Permite que el servidor inicie en CI/CD o producción sin dotenv
 }
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -17,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const searchEngine = createSearchEngine({
@@ -27,13 +28,12 @@ const searchEngine = createSearchEngine({
     userAgent: process.env.SEARCH_USER_AGENT || 'SekaiBot/1.0 (+search crawler)'
 });
 
-// Public Supabase configuration. The anon key is intended for browser use; never expose a service-role key.
+// ——— Config pública (nunca service-role) ———
 app.get('/api/config', (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json({
         supabaseUrl: process.env.SUPABASE_URL || '',
         supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || '',
-        // Compatibilidad con builds antiguas. Preferir SUPABASE_PUBLISHABLE_KEY.
         supabaseAnonKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '',
         hoshiUrl: process.env.HOSHI_URL || 'https://backendv3-188.onrender.com',
         browserEngine: process.env.BROWSER_ENGINE || 'local',
@@ -46,64 +46,67 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// ——— WhatsApp (Baileys) ———
 let sock;
-let currentQR = "";
+let currentQR = '';
 
 async function initWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false
-    });
-
-    sock.ev.on('connection.update', async (update) => {
-        const { qr } = update;
-        if (qr) {
-            currentQR = await QRCode.toDataURL(qr);
-        }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: false
+        });
+        sock.ev.on('connection.update', async (update) => {
+            const { qr } = update;
+            if (qr) {
+                currentQR = await QRCode.toDataURL(qr);
+            }
+        });
+        sock.ev.on('creds.update', saveCreds);
+    } catch (e) {
+        console.warn('WhatsApp init skipped:', e.message || e);
+    }
 }
 initWhatsApp();
 
-// Crawler opcional. Se activa por entorno para no gastar recursos inesperadamente.
+// Crawler opcional
 if (String(process.env.SEARCH_CRAWL_ON_START || '').toLowerCase() === 'true') {
-    setTimeout(() => searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 }).catch(err => console.error('Initial search crawl:', err)), 5000);
+    setTimeout(() => {
+        searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 })
+            .catch(err => console.error('Initial search crawl:', err));
+    }, 5000);
 }
 const crawlIntervalMinutes = Number(process.env.SEARCH_CRAWL_INTERVAL_MINUTES || 0);
 if (crawlIntervalMinutes > 0) {
     setInterval(() => {
-        if (!searchEngine.isCrawling()) searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 }).catch(err => console.error('Scheduled search crawl:', err));
+        if (!searchEngine.isCrawling()) {
+            searchEngine.crawl({ maxPages: Number(process.env.SEARCH_CRAWL_MAX_PAGES) || 200 })
+                .catch(err => console.error('Scheduled search crawl:', err));
+        }
     }, crawlIntervalMinutes * 60 * 1000);
 }
 
-// Endpoint para solicitar QR
 app.get('/api/request-qr', (req, res) => {
-    if (!currentQR) return res.status(404).json({ error: "QR no disponible aun, intenta en unos segundos." });
+    if (!currentQR) return res.status(404).json({ error: 'QR no disponible aun, intenta en unos segundos.' });
     res.json({ qr: currentQR });
 });
 
-// Endpoint para solicitar código de 8 dígitos
 app.post('/api/request-code', async (req, res) => {
     const { phoneNumber } = req.body;
-    if (!phoneNumber) return res.status(400).json({ error: "Número requerido" });
-
+    if (!phoneNumber) return res.status(400).json({ error: 'Número requerido' });
     try {
         const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
-        if (!sock) return res.status(500).json({ error: "Socket no inicializado" });
-
+        if (!sock) return res.status(500).json({ error: 'Socket no inicializado' });
         const code = await sock.requestPairingCode(cleanNumber);
         const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
         res.json({ code: formattedCode });
     } catch (e) {
-        res.status(500).json({ error: "Error al generar código de vinculación" });
+        res.status(500).json({ error: 'Error al generar código de vinculación' });
     }
 });
 
-
-
-// Búsqueda multimedia pública. Chromi usa MangaDex para manga y Jikan/MAL para anime/personajes.
+// ——— Helpers de búsqueda ———
 const fetchJson = async (url, options = {}) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeout || 15000);
@@ -135,6 +138,27 @@ const textFromLocalized = value => {
     return value.es || value.en || Object.values(value)[0] || '';
 };
 
+/** Fetch con timeout para el proxy del browser */
+async function fetchProxied(url, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeout || 20000);
+    try {
+        return await fetch(url, {
+            ...options,
+            signal: controller.signal,
+            redirect: 'follow',
+            headers: {
+                'User-Agent': process.env.BROWSER_UA || 'Mozilla/5.0 (compatible; SekaiBrowser/1.0)',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                ...(options.headers || {})
+            }
+        });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// ——— MangaDex ———
 app.get('/api/search/manga', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 20);
@@ -182,7 +206,6 @@ app.get('/api/search/manga', async (req, res) => {
     }
 });
 
-// Capítulos de un manga (MangaDex)
 app.get('/api/manga/:id/chapters', async (req, res) => {
     const id = String(req.params.id || '').trim();
     const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
@@ -223,7 +246,6 @@ app.get('/api/manga/:id/chapters', async (req, res) => {
     }
 });
 
-// Páginas de un capítulo (at-home)
 app.get('/api/manga/chapter/:chapterId/pages', async (req, res) => {
     const chapterId = String(req.params.chapterId || '').trim();
     if (!chapterId) return res.status(400).json({ error: 'Capítulo requerido' });
@@ -251,7 +273,24 @@ app.get('/api/manga/chapter/:chapterId/pages', async (req, res) => {
     }
 });
 
+// Proxy de imagen de página de manga (evita CORS en el lector)
+app.get('/api/manga/page', async (req, res) => {
+    const u = String(req.query.u || '').trim();
+    if (!u || !/^https?:\/\//i.test(u)) return res.status(400).send('URL inválida');
+    try {
+        const r = await fetchProxied(u, { timeout: 20000 });
+        if (!r.ok) return res.status(r.status).send('No se pudo cargar la página');
+        const ct = r.headers.get('content-type') || 'image/jpeg';
+        const buf = Buffer.from(await r.arrayBuffer());
+        res.set('Content-Type', ct);
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.send(buf);
+    } catch (e) {
+        res.status(502).send('Error al obtener la página');
+    }
+});
 
+// ——— Anime: Jikan → Kitsu → AniList ———
 app.get('/api/search/anime', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 20);
@@ -282,7 +321,6 @@ app.get('/api/search/anime', async (req, res) => {
                 badge: 'ANIME'
             };
         });
-        // Prefer titles that start with the query
         mapped.sort((a, b) => {
             const as = a.title.toLowerCase().startsWith(qLower) ? 0 : 1;
             const bs = b.title.toLowerCase().startsWith(qLower) ? 0 : 1;
@@ -315,7 +353,27 @@ app.get('/api/search/anime', async (req, res) => {
         });
     };
 
-    // 1) Try Jikan
+    const mapAniList = (payload) => {
+        return (payload?.data?.Page?.media || []).slice(0, limit).map(m => ({
+            id: String(m.id),
+            type: 'anime',
+            source: 'AniList',
+            title: m.title?.romaji || m.title?.english || 'Anime',
+            titleEnglish: m.title?.english || '',
+            titleJapanese: m.title?.native || '',
+            description: String(m.description || '').replace(/<[^>]+>/g, ' ').slice(0, 400),
+            synopsis: String(m.description || '').replace(/<[^>]+>/g, ' '),
+            cover: m.coverImage?.large || m.coverImage?.medium || '',
+            score: m.averageScore != null ? (m.averageScore / 10) : null,
+            episodes: m.episodes || null,
+            status: m.status || '',
+            year: m.startDate?.year || null,
+            url: m.siteUrl || `https://anilist.co/anime/${m.id}`,
+            badge: 'ANIME'
+        }));
+    };
+
+    // 1) Jikan
     try {
         const isShort = q.length <= 5;
         const params = new URLSearchParams({
@@ -328,7 +386,7 @@ app.get('/api/search/anime', async (req, res) => {
             params.set('order_by', 'popularity');
             params.set('sort', 'asc');
         }
-        const payload = await fetchJson(`https://api.jikan.moe/v4/anime?${params.toString()}`, { timeout: 12000 });
+        const payload = await fetchJson(`https://api.jikan.moe/v4/anime?${params.toString()}`, { timeout: 10000 });
         const data = mapJikan(payload);
         if (data.length) {
             return res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
@@ -337,17 +395,50 @@ app.get('/api/search/anime', async (req, res) => {
         console.error('Jikan anime search:', error.message);
     }
 
-    // 2) Fallback Kitsu
+    // 2) Kitsu
     try {
         const params = new URLSearchParams();
         params.set('filter[text]', q);
         params.set('page[limit]', String(limit));
-        const payload = await fetchJson(`https://kitsu.io/api/edge/anime?${params.toString()}`, { timeout: 12000 });
+        const payload = await fetchJson(`https://kitsu.io/api/edge/anime?${params.toString()}`, { timeout: 10000 });
         const data = mapKitsu(payload);
-        return res.json({ source: 'kitsu', total: data.length, data });
+        if (data.length) {
+            return res.json({ source: 'kitsu', total: data.length, data });
+        }
     } catch (error) {
         console.error('Kitsu anime search:', error.message);
-        return res.status(502).json({ error: 'La búsqueda de anime no está disponible en este momento.', source: 'jikan+kitsu' });
+    }
+
+    // 3) AniList (GraphQL) — más estable cuando Jikan/MAL caen
+    try {
+        const query = `query ($s: String, $n: Int) {
+          Page(perPage: $n) {
+            media(search: $s, type: ANIME, sort: SEARCH_MATCH) {
+              id title { romaji english native }
+              coverImage { large medium }
+              description(asHtml: false)
+              averageScore episodes status startDate { year } siteUrl
+            }
+          }
+        }`;
+        const r = await fetch('https://graphql.anilist.co', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ query, variables: { s: q, n: limit } }),
+            signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined
+        });
+        const payload = await r.json();
+        const data = mapAniList(payload);
+        if (data.length) {
+            return res.json({ source: 'anilist', total: data.length, data });
+        }
+        return res.json({ source: 'anilist', total: 0, data: [] });
+    } catch (error) {
+        console.error('AniList anime search:', error.message);
+        return res.status(502).json({
+            error: 'La búsqueda de anime no está disponible en este momento.',
+            source: 'jikan+kitsu+anilist'
+        });
     }
 });
 
@@ -374,11 +465,11 @@ app.get('/api/search/characters', async (req, res) => {
         return res.json({ source: 'jikan', total: payload.pagination?.items?.total || data.length, data });
     } catch (error) {
         console.error('Jikan character search:', error.message);
-        // No tumbar toda la búsqueda: devolver vacío
         return res.json({ source: 'jikan', total: 0, data: [], warning: 'Personajes temporalmente no disponibles' });
     }
 });
 
+// ——— Índice web propio ———
 app.get('/api/search/web', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const type = String(req.query.type || 'all').toLowerCase();
@@ -425,6 +516,7 @@ app.post('/api/search/crawl', async (req, res) => {
 
 app.get('/api/search/crawl/status', (req, res) => res.json(searchEngine.crawlStatus()));
 
+// ——— DNS / VPN / Red ———
 app.get('/api/dns/resolve', async (req, res) => {
     const name = String(req.query.name || '').trim().toLowerCase();
     const type = String(req.query.type || 'A').toUpperCase();
@@ -435,7 +527,7 @@ app.get('/api/dns/resolve', async (req, res) => {
         const upstream = process.env.DOH_UPSTREAM || 'https://cloudflare-dns.com/dns-query';
         const r = await fetch(`${upstream}?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`, {
             headers: { accept: 'application/dns-json' },
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
         });
         const data = await r.json();
         res.set('Cache-Control', 'private, max-age=60');
@@ -462,90 +554,217 @@ app.get('/api/network/status', (req, res) => {
     res.json({
         proxy: { enabled: true, endpoint: '/api/browser' },
         privateDns: { enabled: true, endpoint: '/api/dns/resolve', protocol: 'DoH' },
-        vpn: { enabled: false, mode: 'manual-ovpn', directory: '/vpn', message: 'Añade tus archivos .ovpn en public/vpn y configúralos en el cliente VPN.' }
+        vpn: {
+            enabled: false,
+            mode: 'manual-ovpn',
+            directory: '/vpn',
+            message: 'Añade tus archivos .ovpn en public/vpn y configúralos en el cliente VPN.'
+        }
     });
 });
 
-function proxyUrl(u){ return `/api/browser?url=${encodeURIComponent(u)}`; }
-function rewriteHtml(html, baseUrl){
-    const rewrite=(value)=>{
-        const v=String(value||'').trim();
-        if(!v || /^(?:#|data:|javascript:|mailto:|tel:|blob:)/i.test(v)) return value;
-        try{return proxyUrl(new URL(v,baseUrl).href)}catch{return value}
+// ——— Browser proxy ———
+function proxyUrl(u) {
+    return `/api/browser?url=${encodeURIComponent(u)}`;
+}
+
+function rewriteHtml(html, baseUrl) {
+    const rewrite = (value) => {
+        const v = String(value || '').trim();
+        if (!v || /^(?:#|data:|javascript:|mailto:|tel:|blob:)/i.test(v)) return value;
+        try {
+            return proxyUrl(new URL(v, baseUrl).href);
+        } catch {
+            return value;
+        }
     };
-    html=html.replace(/(<(?:a|link|area|base|form)\b[^>]*?\b(?:href|action)\s*=\s*["'])([^"']+)(["'])/gi,(_,a,v,c)=>a+rewrite(v)+c);
-    html=html.replace(/(<(?:img|script|iframe|source|video|audio|track|input)\b[^>]*?\b(?:src|poster)\s*=\s*["'])([^"']+)(["'])/gi,(_,a,v,c)=>a+rewrite(v)+c);
-    html=html.replace(/\b(srcset)\s*=\s*(["'])([^"']+)(\2)/gi,(_,attr,q,val,end)=>attr+'='+q+val.split(',').map(x=>{const parts=x.trim().split(/\s+/);parts[0]=rewrite(parts[0]);return parts.join(' ')}).join(', ')+end);
-    html=html.replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi,(_,q,v)=>{const r=rewrite(v);return `url(${q}${r}${q})`;});
-    html=html.replace(/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/gi,'');
-    html=html.replace(/<head([^>]*)>/i,`<head$1><meta name="referrer" content="no-referrer"><script>window.__SEKAI_PROXY_BASE=${JSON.stringify(baseUrl)};</script>`);
+    html = html.replace(
+        /(<(?:a|link|area|base|form)\b[^>]*?\b(?:href|action)\s*=\s*["'])([^"']+)(["'])/gi,
+        (_, a, v, c) => a + rewrite(v) + c
+    );
+    html = html.replace(
+        /(<(?:img|script|iframe|source|video|audio|track|input)\b[^>]*?\b(?:src|poster)\s*=\s*["'])([^"']+)(["'])/gi,
+        (_, a, v, c) => a + rewrite(v) + c
+    );
+    html = html.replace(/\b(srcset)\s*=\s*(["'])([^"']+)(\2)/gi, (_, attr, q, val, end) =>
+        attr +
+        '=' +
+        q +
+        val
+            .split(',')
+            .map(x => {
+                const parts = x.trim().split(/\s+/);
+                parts[0] = rewrite(parts[0]);
+                return parts.join(' ');
+            })
+            .join(', ') +
+        end
+    );
+    html = html.replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi, (_, q, v) => {
+        const r = rewrite(v);
+        return `url(${q}${r}${q})`;
+    });
+    html = html.replace(/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/gi, '');
+    html = html.replace(
+        /<head([^>]*)>/i,
+        `<head$1><meta name="referrer" content="no-referrer"><script>window.__SEKAI_PROXY_BASE=${JSON.stringify(baseUrl)};</script>`
+    );
     return html;
 }
-app.get('/api/browser', async (req,res)=>{
-    const raw=String(req.query.url||'').trim();
-    if(!raw) return res.status(400).send('URL requerida');
-    try{
-        const target=new URL(raw);
-        const r=await fetchProxied(target.href);
-        const ct=r.headers.get('content-type')||'application/octet-stream';
-        const buf=Buffer.from(await r.arrayBuffer());
-        if(buf.length>15*1024*1024) return res.status(413).send('El recurso supera el límite del navegador Sekai.');
+
+app.get('/api/browser', async (req, res) => {
+    const raw = String(req.query.url || '').trim();
+    if (!raw) return res.status(400).send('URL requerida');
+    try {
+        const target = new URL(raw);
+        if (!/^https?:$/i.test(target.protocol)) {
+            return res.status(400).send('Solo HTTP/HTTPS');
+        }
+        const r = await fetchProxied(target.href);
+        const ct = r.headers.get('content-type') || 'application/octet-stream';
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 15 * 1024 * 1024) {
+            return res.status(413).send('El recurso supera el límite del navegador Sekai.');
+        }
         res.status(r.status);
-        res.set('Cache-Control','private, max-age=120');
-        if(/^text\/html|application\/xhtml\+xml/i.test(ct)){
-            const charset=/charset=([^;]+)/i.exec(ct)?.[1]||'utf-8';
-            let html=buf.toString(charset.toLowerCase().replace(/[^\w-]/g,'')||'utf8');
-            html=rewriteHtml(html,target.href);
+        res.set('Cache-Control', 'private, max-age=120');
+        if (/^text\/html|application\/xhtml\+xml/i.test(ct)) {
+            const charset = /charset=([^;]+)/i.exec(ct)?.[1] || 'utf-8';
+            let html = buf.toString(charset.toLowerCase().replace(/[^\w-]/g, '') || 'utf8');
+            html = rewriteHtml(html, target.href);
             res.type('html').send(html);
         } else {
-            res.set('Content-Type',ct);
+            res.set('Content-Type', ct);
             res.send(buf);
         }
-    }catch(e){
-        console.error('Sekai Browser:',e.message);
-        res.status(502).send(`<html><body style="font-family:system-ui;padding:40px"><h2>No se pudo abrir este sitio</h2><p>${String(e.message).replace(/[<>&]/g,'')}</p><p>Sekai Browser solo puede acceder a destinos HTTP/HTTPS públicos.</p></body></html>`);
+    } catch (e) {
+        console.error('Sekai Browser:', e.message);
+        res.status(502).send(
+            `<html><body style="font-family:system-ui;padding:40px"><h2>No se pudo abrir este sitio</h2><p>${String(e.message).replace(/[<>&]/g, '')}</p><p>Sekai Browser solo puede acceder a destinos HTTP/HTTPS públicos.</p></body></html>`
+        );
     }
 });
 
-// Proxy IA
+// ——— Chromi chat: Groq → Gemini → Pollinations ———
 app.post('/api/chat', async (req, res) => {
     const { prompt, usuario } = req.body;
-    if (!prompt) return res.status(400).json({ error: "Prompt requerido" });
+    if (!prompt) return res.status(400).json({ error: 'Prompt requerido' });
 
-    const sistema = "Tu nombre es Chromi. Eres una chica Gen Z divertida, atenta y leal. Respondes de forma cercana y directa.";
+    const sistema =
+        'Tu nombre es Chromi. Eres una chica Gen Z divertida, atenta y leal. Respondes de forma cercana y directa en español. Sé breve cuando toque, útil y con personalidad.';
     const inputTexto = `${usuario || 'Usuario'}: ${prompt}`;
+    const groqKey =
+        process.env.GROQ_API_KEY ||
+        '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';
+    const geminiKey = process.env.GEMINI_API_KEY || '';
+    const groqModel = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
 
     try {
-        if (process.env.GEMINI_API_KEY) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-            const r = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    system_instruction: { parts: [{ text: sistema }] },
-                    contents: [{ parts: [{ text: inputTexto }] }]
-                })
-            });
-            const d = await r.json();
-            const respuesta = d?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (respuesta) return res.json({ respuesta });
+        // 1) Groq principal
+        if (groqKey) {
+            try {
+                const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${groqKey}`
+                    },
+                    body: JSON.stringify({
+                        model: groqModel,
+                        temperature: 0.8,
+                        max_tokens: 800,
+                        messages: [
+                            { role: 'system', content: sistema },
+                            { role: 'user', content: inputTexto }
+                        ]
+                    })
+                });
+                const d = await r.json();
+                const respuesta = d?.choices?.[0]?.message?.content;
+                if (respuesta && String(respuesta).trim()) {
+                    return res.json({ respuesta: String(respuesta).trim(), provider: 'groq' });
+                }
+                console.warn('Groq empty/fail', d?.error || r.status);
+
+                // Fallback modelo mini
+                const r2 = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${groqKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'groq/compound-mini',
+                        temperature: 0.8,
+                        max_tokens: 800,
+                        messages: [
+                            { role: 'system', content: sistema },
+                            { role: 'user', content: inputTexto }
+                        ]
+                    })
+                });
+                const d2 = await r2.json();
+                const r2txt = d2?.choices?.[0]?.message?.content;
+                if (r2txt && String(r2txt).trim()) {
+                    return res.json({ respuesta: String(r2txt).trim(), provider: 'groq-mini' });
+                }
+            } catch (e) {
+                console.warn('Groq error', e.message || e);
+            }
         }
 
-        const consulta = `${sistema}\n\n${inputTexto}`;
-        const rPoll = await fetch(`https://text.pollinations.ai/${encodeURIComponent(consulta)}`);
-        const textoPoll = await rPoll.text();
-
-        if (textoPoll && textoPoll.trim().length > 0) {
-            return res.json({ respuesta: textoPoll });
+        // 2) Gemini
+        if (geminiKey) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: sistema }] },
+                        contents: [{ parts: [{ text: inputTexto }] }]
+                    })
+                });
+                const d = await r.json();
+                const respuesta = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (respuesta) return res.json({ respuesta, provider: 'gemini' });
+            } catch (e) {
+                console.warn('Gemini error', e.message || e);
+            }
         }
 
-        res.json({ respuesta: "…… ando lentita bb, intenta de nuevo en un sec 🖤" });
+        // 3) Pollinations (último recurso)
+        try {
+            const consulta = `${sistema}\n\n${inputTexto}`;
+            const rPoll = await fetch(`https://text.pollinations.ai/${encodeURIComponent(consulta)}`);
+            const textoPoll = await rPoll.text();
+            if (textoPoll && textoPoll.trim().length > 0 && !/budget|API key/i.test(textoPoll)) {
+                return res.json({ respuesta: textoPoll, provider: 'pollinations' });
+            }
+        } catch (e) {
+            console.warn('Pollinations error', e.message || e);
+        }
+
+        res.json({
+            respuesta:
+                'Ahora mismo no pude conectar con ningún modelo. Revisa GROQ_API_KEY en el servidor de Render.'
+        });
     } catch (e) {
-        res.status(500).json({ error: "Error interno en el servidor" });
+        console.error(e);
+        res.status(500).json({ error: 'Error interno en el servidor' });
     }
+});
+
+// SPA fallback
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    const index = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(index)) return res.sendFile(index);
+    res.status(404).send('Not found');
 });
 
 app.listen(PORT, () => {
-    console.log(`Servidor activo en http://localhost:${PORT}`);
+    console.log(`Sekai server en http://localhost:${PORT}`);
+    console.log(`Chat: Groq ${process.env.GROQ_API_KEY ? '(env)' : '(fallback key)'} · modelo ${process.env.GROQ_MODEL || 'qwen/qwen3.8-27b'}`);
 });
 
